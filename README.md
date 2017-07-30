@@ -1,6 +1,6 @@
 # Crossing Detector Plugin
 
-This plugin fires a TTL event when a specified input data channel crosses a specified threshold level; the criteria for detection and the output are highly customizable. It does not modify the data channels. Each instance only processes one data channel, but multiple instances can be chained together or placed in parallel.
+This plugin for the [Open Ephys GUI](https://github.com/open-ephys/plugin-GUI) fires a TTL event when a specified input data channel crosses a specified threshold level; the criteria for detection and the output are highly customizable. It does not modify the data channels. Each instance only processes one data channel, but multiple instances can be chained together or placed in parallel.
 
 ## How it works:
 
@@ -25,8 +25,8 @@ On all platforms:
 On Windows (VS2013):
 
 * Copy `crossing-detector/Builds/VisualStudio2013/CrossingDetector` to `plugin-GUI/Builds/VisualStudio2013/Plugins/CrossingDetector`.
-`
+
 * In Visual Studio, open the `Plugins.sln` solution and add the new project (`File->Add->Existing Project...` and select `Builds/VisualStudio2013/Plugins/CrossingDetector/CrossingDetector.vcxproj`). Then build the solution.
 
 I hope you find this to be useful!
--Ethan Blackwood ([@ethanbb](https://github.com/ethanbb))
+-Ethan Blackwood ([ethanbb](https://github.com/ethanbb))
