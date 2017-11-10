@@ -1,8 +1,8 @@
 /*
 ------------------------------------------------------------------
 
-This file is part of the Open Ephys GUI
-Copyright (C) 2014 Open Ephys
+This file is part of a plugin for the Open Ephys GUI
+Copyright (C) 2017 Translational NeuroEngineering Laboratory, MGH
 
 ------------------------------------------------------------------
 
