@@ -25,6 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define CROSSING_DETECTOR_H_INCLUDED
 
 #ifdef _WIN32
+#define NOMINMAX
 #include <Windows.h>
 #endif
 
@@ -48,6 +49,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // parameter indices
 enum
 {
+    pRandThresh,
+    pMinThresh,
+    pMaxThresh,
     pThreshold,
     pPosOn,
     pNegOn,
@@ -58,7 +62,9 @@ enum
     pPastSpan,
     pPastStrict,
     pFutureSpan,
-    pFutureStrict
+    pFutureStrict,
+    pUseJumpLimit,
+    pJumpLimit
 };
 
 class CrossingDetector : public GenericProcessor
@@ -82,7 +88,7 @@ public:
 
 private:
 
-    // -----utility func.--------
+    // -----utility funcs--------
     // Whether there should be a trigger at sample t0, where t0 may be negative (interpreted in relation to the end of prevBuffer)
     // nSamples is the number of samples in the current buffer, determined within the process function.
     // dir is the crossing direction(s) (see #defines above) (must be explicitly specified)
@@ -90,23 +96,36 @@ private:
     bool shouldTrigger(const float* rpCurr, int nSamples, int t0, float currThresh,
         bool currPosOn, bool currNegOn, int currPastSpan, int currFutureSpan);
 
+    // Select a new random threshold using minThresh, maxThresh, and rng.
+    float nextThresh();
+
     // ------parameters------------
 
+    // if using fixed threshold:
     float threshold;
+    Value thresholdVal; // underlying value of the threshold label
+
+    // if using random thresholds:
+    bool useRandomThresh;
+    float minThresh;
+    float maxThresh;
+    float currRandomThresh;
+    Random rng;
+
     bool posOn;
     bool negOn;
     int inputChan;
     int eventChan;    
-    int shutoffChan; // temporary storage of event that must be shut off; allows eventChan to be adjusted during acquisition
+    int shutoffChan; // temporary storage of chan w/ event that must be shut off; allows eventChan to be adjusted during acquisition
 
-    int eventDuration; // in samples    
-    int timeout; // number of samples after an event onset which may not trigger another event.
+    int eventDuration; // in milliseconds    
+    int timeout; // milliseconds after an event onset when no more events are allowed.
 
-    /* number of past and future (including current) samples to look at at each timepoint (attention span)
-    * generally, things get messy if we try to look too far back or especially forward compared to the size of the processing buffers
+    /* Number of *additional* past and future samples to look at at each timepoint (attention span)
+    * Generally, things get messy if we try to look too far back or especially forward compared to the size of the processing buffers
     *
-    * if futureSpan samples are not available to look ahead from a timepoint, the test is delayed until the next processing cycle, and if it succeeds,
-    * the event occurs on the first sample of the next buffer. thus, setting futureSpan too large will delay some events slightly.
+    * If futureSpan samples are not available to look ahead from a timepoint, the test is delayed until the next processing cycle, and if it succeeds,
+    * the event occurs on the first sample of the next buffer. Thus, setting futureSpan too large will delay some events slightly.
     */
     int pastSpan;
     int futureSpan;
@@ -114,6 +133,10 @@ private:
     // fraction of spans required to be above / below threshold
     float pastStrict;
     float futureStrict;
+
+    // maximum absolute difference between x[k] and x[k-1] to trigger an event on x[k]
+    bool useJumpLimit;
+    float jumpLimit;
 
     // limits on numprev / numnext
     // (setting these too high could cause events near the end of a buffer to be significantly delayed,

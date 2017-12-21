@@ -24,50 +24,55 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef CROSSING_DETECTOR_EDITOR_H_INCLUDED
 #define CROSSING_DETECTOR_EDITOR_H_INCLUDED
 
-#include <EditorHeaders.h>
+#include <VisualizerEditorHeaders.h>
+#include <VisualizerWindowHeaders.h>
 #include <string>
 #include <climits>
 #include <cfloat>
+#include <algorithm>
 
 /*
-Editor consists of:
--Combo box to select crossing direction to detect
--Combo box to select input (continuous) channel
--Combo box to select output (event) channel
--Editable label to specify the duration of each event, in samples
--Editable label to specify the timeout period after each event, in samples
--Editable label to enter the threshold sample value (crossing of which triggers an event)
--Editable label to enter the percentage of past values required
--Editable label to enter the number of past values to consider
--Editable label to enter the number of future values required
--Editable label to enter the number of future values to consider
+Editor (in signal chain) contains:
+- Input channel selector
+- Ouptput event channel selector
+- Direction ("rising" and "falling") buttons
+- Threshold control (and indicator when threshold randomization is on)
+- Event timeout control
+
+Canvas/visualizer contains:
+- Threshold randomization toggle, minimum and maximum thresh boxes
+- Slope (jump size across threshold) limiting toggle and max jump box
+- Voting settings (pre/post event span and strictness)
+- Event duration control
 
 @see GenericEditor
-
 */
 
-class CrossingDetectorEditor : public GenericEditor,
-    public ComboBox::Listener, public Label::Listener
+class CrossingDetectorCanvas;
+
+class CrossingDetectorEditor 
+    : public VisualizerEditor
+    , public ComboBox::Listener
+    , public Label::Listener
 {
 public:
     CrossingDetectorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors = false);
     ~CrossingDetectorEditor();
-
-    // implements ComboBox::Listener
     void comboBoxChanged(ComboBox* comboBoxThatHasChanged) override;
-
-    // implements Label::Listener
     void labelTextChanged(Label* labelThatHasChanged) override;
 
     // overrides GenericEditor
     void buttonEvent(Button* button) override;
 
-    // allow editor to react to changing # of channels
     void updateSettings() override;
 
     // disable input channel selection during acquisition so that events work correctly
     void startAcquisition() override;
     void stopAcquisition() override;
+
+    Visualizer* createNewCanvas() override;
+
+    Component* getOptionsPanel();
 
     void saveCustomParameters(XmlElement* xml) override;
     void loadCustomParameters(XmlElement* xml) override;
@@ -75,41 +80,97 @@ public:
 private:
     typedef juce::Rectangle<int> Rectangle;
 
+    // Basic UI element creation methods. Always register "this" (the editor) as the listener,
+    // but may specify a different Component in which to actually display the element.
     Label* createEditable(const String& name, const String& initialValue,
-        const String& tooltip, const Rectangle bounds);
+        const String& tooltip, Rectangle bounds);
+    Label* createLabel(const String& name, const String& text, Rectangle bounds);
 
-    Label* createLabel(const String& name, const String& text, const Rectangle bounds);
-
-    // utilities for parsing entered values
+    // Utilities for parsing entered values
     static bool updateIntLabel(Label* label, int min, int max, int defaultValue, int* out);
     static bool updateFloatLabel(Label* label, float min, float max, float defaultValue, float* out);
 
+    // top row (channels)
+    ScopedPointer<Label> inputLabel;
     ScopedPointer<ComboBox> inputBox;
-    ScopedPointer<ComboBox> eventBox;
+    ScopedPointer<Label> outputLabel;
+    ScopedPointer<ComboBox> outputBox;
 
+    // middle row (threshold)
     ScopedPointer<UtilityButton> risingButton;
     ScopedPointer<UtilityButton> fallingButton;
-
-    ScopedPointer<Label> durationEditable;
-    ScopedPointer<Label> timeoutEditable;
+    ScopedPointer<Label> acrossLabel;
     ScopedPointer<Label> thresholdEditable;
+
+    // bottom row (timeout)
+    ScopedPointer<Label> timeoutLabel;
+    ScopedPointer<Label> timeoutEditable;
+    ScopedPointer<Label> timeoutUnitLabel;
+
+    // --- Canvas elements are managed by editor but invisible until visualizer is opened ----
+    CrossingDetectorCanvas* canvas;
+    ScopedPointer<Component> optionsPanel;
+
+    ScopedPointer<Label> optionsPanelTitle;
+    
+    // threshold randomization
+    ScopedPointer<ToggleButton> randomizeButton;
+    ScopedPointer<Label> minThreshLabel;
+    ScopedPointer<Label> minThreshEditable;
+    ScopedPointer<Label> maxThreshLabel;
+    ScopedPointer<Label> maxThreshEditable;
+
+    // jump limiting
+    ScopedPointer<ToggleButton> limitButton;
+    ScopedPointer<Label> limitLabel;
+    ScopedPointer<Label> limitEditable;
+
+    // sample voting
+    ScopedPointer<Label> votingHeader;
+    
+    ScopedPointer<Label> pastStrictLabel;
     ScopedPointer<Label> pastPctEditable;
+    ScopedPointer<Label> pastPctLabel;
     ScopedPointer<Label> pastSpanEditable;
+    ScopedPointer<Label> pastSpanLabel;
+
+    ScopedPointer<Label> futureStrictLabel;
     ScopedPointer<Label> futurePctEditable;
+    ScopedPointer<Label> futurePctLabel;
+    ScopedPointer<Label> futureSpanLabel;
     ScopedPointer<Label> futureSpanEditable;
 
-    // static labels
-    ScopedPointer<Label> inputLabel;
-    ScopedPointer<Label> acrossLabel;
-    ScopedPointer<Label> pastSpanLabel;
-    ScopedPointer<Label> pastStrictLabel;
-    ScopedPointer<Label> pastPctLabel;
-    ScopedPointer<Label> futureSpanLabel;
-    ScopedPointer<Label> futureStrictLabel;
-    ScopedPointer<Label> futurePctLabel;
-    ScopedPointer<Label> outputLabel;
+    ScopedPointer<Label> votingFooter;
+
+    // event duration
     ScopedPointer<Label> durLabel;
-    ScopedPointer<Label> timeoutLabel;
+    ScopedPointer<Label> durationEditable;
+    ScopedPointer<Label> durUnitLabel;
+};
+
+// Visualizer window containing additional settings
+
+class CrossingDetectorCanvas : public Visualizer
+{
+public:
+    CrossingDetectorCanvas(GenericProcessor* n);
+    ~CrossingDetectorCanvas();
+    void refreshState() override;
+    void update() override;
+    void refresh() override;
+    void beginAnimation() override;
+    void endAnimation() override;
+    void setParameter(int, float) override;
+    void setParameter(int, int, int, float) override;
+
+    void paint(Graphics& g) override;
+    void resized() override;
+
+    GenericProcessor* processor;
+    CrossingDetectorEditor* editor;
+private:
+    ScopedPointer<Viewport> viewport;
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetectorCanvas);
 };
 
 #endif // CROSSING_DETECTOR_EDITOR_H_INCLUDED
