@@ -2,17 +2,23 @@
 
 This plugin for the [Open Ephys GUI](https://github.com/open-ephys/plugin-GUI) fires a TTL event when a specified input data channel crosses a specified threshold level; the criteria for detection and the output are highly customizable. It does not modify the data channels. Each instance only processes one data channel, but multiple instances can be chained together or placed in parallel.
 
-## How it works:
+## Settings:
 
-* With the default settings, a positive ("rising") crossing occurs at sample _t_ if and only if sample _t_-1 is less than the threshold and sample _t_ is greater, and vice versa for a negative ("falling") crossing. However, to make it more robust to noise or just tweak it to fit a certain use case, you can also adjust the span and strictness settings:
+### Main panel
 
-  * __Span__ controls how many samples before or after the current sample are considered.
+* Basic operation: When the __In__ data channel __Rises__ and/or __Falls__ across the __Threshold__ level, an event turns on on the __Out__ event channel.
 
-  * Of these, the percent that must be on the right side of the threshold is controlled by __strictness__.
-  
-* The duration of events, in samples, can be adjusted ("dur").
+* __Timeout__ controls the minimum time between two consecutive events (i.e. for this number of milliseconds after an event fires, no more crossings can be detected).
 
-* __Timeout__ controls the minimum number of samples between two consecutive events (i.e. for this number of samples after an event fires, no more crossings can be detected).
+### Additional settings (in visualizer window)
+
+* Threshold randomization (chooses a new threshold for each event, within the provided range)
+
+* Cross-threshold jump size limit (does not fire an event if the difference across threshold is too large in magnitude; useful for filtering out wrapped phase jumps, for example)
+
+* Sample voting (make detection more robust to noise by requiring a larger span of samples before or after t0 to be on the correct side)
+
+* Event duration (in ms)
 
 ## Installation
 
