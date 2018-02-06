@@ -24,8 +24,6 @@ This plugin for the [Open Ephys GUI](https://github.com/open-ephys/plugin-GUI) f
 
 The crossing detector has been compiled and tested on Windows and Linux, but currently not on OSX. It shouldn't be too hard to get it working though, since it's a standard plugin that requires no external libraries. Let me know if you're interested in porting it - or just go ahead and do it.
 
-The plugin currently only compiles with the `development` branch of `open-ephys/plugin-GUI` because it uses the [new info and channel objects](https://open-ephys.atlassian.net/wiki/display/OEW/Data+and+channel+objects?src=contextnavpagetreemode). Be sure you have this version working before installing the Crossing Detector.
-
 On all platforms:
 
 * Copy `crossing-detector/Source/CrossingDetector` to `plugin-GUI/Source/Plugins/CrossingDetector`.
