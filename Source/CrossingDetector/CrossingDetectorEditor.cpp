@@ -335,7 +335,7 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == pastSpanEditable)
     {
         int newVal;
-        bool success = updateIntLabel(labelThatHasChanged, 0, processor->MAX_PAST_SPAN, processor->pastSpan, &newVal);
+        bool success = updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->pastSpan, &newVal);
 
         if (success)
             processor->setParameter(pPastSpan, static_cast<float>(newVal));
@@ -351,7 +351,7 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == futureSpanEditable)
     {
         int newVal;
-        bool success = updateIntLabel(labelThatHasChanged, 0, processor->MAX_FUTURE_SPAN, processor->futureSpan, &newVal);
+        bool success = updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->futureSpan, &newVal);
 
         if (success)
             processor->setParameter(pFutureSpan, static_cast<float>(newVal));
