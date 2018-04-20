@@ -2,6 +2,8 @@
 
 This plugin for the [Open Ephys GUI](https://github.com/open-ephys/plugin-GUI) fires a TTL event when a specified input data channel crosses a specified threshold level; the criteria for detection and the output are highly customizable. It does not modify the data channels. Each instance only processes one data channel, but multiple instances can be chained together or placed in parallel.
 
+<img src="cd2.0_front.png" width="250" /> <img src="cd2.0_settings.PNG" width="400" />
+
 ## Settings:
 
 ### Main panel
