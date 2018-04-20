@@ -293,99 +293,99 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 {
     switch (parameterIndex)
     {
-        case pRandThresh:
-            useRandomThresh = static_cast<bool>(newValue);
-            // update threshold
-            float newThresh;
-            if (useRandomThresh)
-            {
-                newThresh = nextThresh();
-                currRandomThresh = newThresh;
-            }
-            else
-            {
-                newThresh = threshold;
-            }
-            thresholdVal = newThresh;
-            break;
+    case pRandThresh:
+        useRandomThresh = static_cast<bool>(newValue);
+        // update threshold
+        float newThresh;
+        if (useRandomThresh)
+        {
+            newThresh = nextThresh();
+            currRandomThresh = newThresh;
+        }
+        else
+        {
+            newThresh = threshold;
+        }
+        thresholdVal = newThresh;
+        break;
 
-        case pMinThresh:
-            minThresh = newValue;
-            currRandomThresh = nextThresh();
-            if (useRandomThresh)
-                thresholdVal = currRandomThresh;
-            break;
+    case pMinThresh:
+        minThresh = newValue;
+        currRandomThresh = nextThresh();
+        if (useRandomThresh)
+            thresholdVal = currRandomThresh;
+        break;
 
-        case pMaxThresh:
-            maxThresh = newValue;
-            currRandomThresh = nextThresh();
-            if (useRandomThresh)
-                thresholdVal = currRandomThresh;
-            break;
+    case pMaxThresh:
+        maxThresh = newValue;
+        currRandomThresh = nextThresh();
+        if (useRandomThresh)
+            thresholdVal = currRandomThresh;
+        break;
 
-        case pThreshold:
-            threshold = newValue;
-            break;
+    case pThreshold:
+        threshold = newValue;
+        break;
 
-        case pPosOn:
-            posOn = static_cast<bool>(newValue);
-            break;
+    case pPosOn:
+        posOn = static_cast<bool>(newValue);
+        break;
 
-        case pNegOn:
-            negOn = static_cast<bool>(newValue);
-            break;
+    case pNegOn:
+        negOn = static_cast<bool>(newValue);
+        break;
 
-        case pInputChan:
-            if (getNumInputs() > newValue)
-                inputChan = static_cast<int>(newValue);
-            break;
+    case pInputChan:
+        if (getNumInputs() > newValue)
+            inputChan = static_cast<int>(newValue);
+        break;
 
-        case pEventChan:
-            // if we're in the middle of an event, keep track of the old channel until it's done.
-            if (sampsToShutoff > -1)
-                shutoffChan = eventChan;
-            eventChan = static_cast<int>(newValue);
-            break;
+    case pEventChan:
+        // if we're in the middle of an event, keep track of the old channel until it's done.
+        if (sampsToShutoff > -1)
+            shutoffChan = eventChan;
+        eventChan = static_cast<int>(newValue);
+        break;
 
-        case pEventDur:
-            eventDuration = static_cast<int>(newValue);
-            break;
+    case pEventDur:
+        eventDuration = static_cast<int>(newValue);
+        break;
 
-        case pTimeout:
-            timeout = static_cast<int>(newValue);
-            break;
+    case pTimeout:
+        timeout = static_cast<int>(newValue);
+        break;
 
-        case pPastSpan:
-            pastSpan = static_cast<int>(newValue);
-            sampsToReenable = pastSpan + futureSpan + 1;
-            pastBinary.resize(pastSpan + 1);
-            pastBinary.clearQuick( );
-            pastBinary.insertMultiple(0, 0, pastSpan + 1);
-            break;
+    case pPastSpan:
+        pastSpan = static_cast<int>(newValue);
+        sampsToReenable = pastSpan + futureSpan + 1;
+        pastBinary.resize(pastSpan + 1);
+        pastBinary.clearQuick( );
+        pastBinary.insertMultiple(0, 0, pastSpan + 1);
+        break;
 
-        case pPastStrict:
-            pastStrict = newValue;
-            break;
+    case pPastStrict:
+        pastStrict = newValue;
+        break;
 
-        case pFutureSpan:
-            futureSpan = static_cast<int>(newValue);
-            sampsToReenable = pastSpan + futureSpan + 1;
-            futureBinary.resize(futureSpan + 1);
-            futureBinary.clearQuick( );
-            futureBinary.insertMultiple(0, 0, futureSpan + 1);
-            break;
+    case pFutureSpan:
+        futureSpan = static_cast<int>(newValue);
+        sampsToReenable = pastSpan + futureSpan + 1;
+        futureBinary.resize(futureSpan + 1);
+        futureBinary.clearQuick( );
+        futureBinary.insertMultiple(0, 0, futureSpan + 1);
+        break;
 
-        case pFutureStrict:
-            futureStrict = newValue;
-            break;
+    case pFutureStrict:
+        futureStrict = newValue;
+        break;
 
-        case pUseJumpLimit:
-            useJumpLimit = static_cast<bool>(newValue);
-            break;
+    case pUseJumpLimit:
+        useJumpLimit = static_cast<bool>(newValue);
+        break;
 
-        case pJumpLimit:
-            jumpLimit = newValue;
-            break;
+    case pJumpLimit:
+        jumpLimit = newValue;
+        break;
     }
 }
 
