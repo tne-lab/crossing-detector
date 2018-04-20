@@ -1,25 +1,25 @@
 /*
- ------------------------------------------------------------------
- 
- This file is part of a plugin for the Open Ephys GUI
- Copyright (C) 2017 Translational NeuroEngineering Laboratory, MGH
- 
- ------------------------------------------------------------------
- 
- This program is free software: you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation, either version 3 of the License, or
- (at your option) any later version.
- 
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
- 
- You should have received a copy of the GNU General Public License
- along with this program.  If not, see <http://www.gnu.org/licenses/>.
- 
- */
+------------------------------------------------------------------
+
+This file is part of a plugin for the Open Ephys GUI
+Copyright (C) 2017 Translational NeuroEngineering Laboratory, MGH
+
+------------------------------------------------------------------
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
 
 #ifndef CROSSING_DETECTOR_H_INCLUDED
 #define CROSSING_DETECTOR_H_INCLUDED
@@ -72,100 +72,99 @@ enum
 class CrossingDetector : public GenericProcessor
 {
     friend class CrossingDetectorEditor;
-    
+
 public:
     CrossingDetector();
     ~CrossingDetector();
-    
+
     bool hasEditor() const { return true; }
     AudioProcessorEditor* createEditor() override;
-    
+
     void createEventChannels() override;
-    
+
     void process(AudioSampleBuffer& continuousBuffer) override;
-    
+
     void setParameter(int parameterIndex, float newValue) override;
-    
+
     bool disable() override;
-    
+
 private:
-    
+
     // -----utility funcs--------
     // Whether there should be a trigger at sample t0, where t0 may be negative (interpreted in relation to the end of prevBuffer)
     // nSamples is the number of samples in the current buffer, determined within the process function.
     // dir is the crossing direction(s) (see #defines above) (must be explicitly specified)
     // uses passed nPrev and nNext rather than the member variables numPrev and numNext.
     bool shouldTrigger(const float* rpCurr, int nSamples, int t0, float currThresh,
-                       bool currPosOn, bool currNegOn, int currPastSpan, int currFutureSpan);
-    
+        bool currPosOn, bool currNegOn, int currPastSpan, int currFutureSpan);
+
     // Select a new random threshold using minThresh, maxThresh, and rng.
     float nextThresh();
-    
+
     // ------parameters------------
-    
+
     // if using fixed threshold:
     float threshold;
     Value thresholdVal; // underlying value of the threshold label
-    
+
     // if using random thresholds:
     bool useRandomThresh;
     float minThresh;
     float maxThresh;
     float currRandomThresh;
     Random rng;
-    
+
     bool posOn;
     bool negOn;
     int inputChan;
     int eventChan;
     int shutoffChan; // temporary storage of chan w/ event that must be shut off; allows eventChan to be adjusted during acquisition
-    
+
     int eventDuration; // in milliseconds
     int timeout; // milliseconds after an event onset when no more events are allowed.
-    
+
     /* Number of *additional* past and future samples to look at at each timepoint (attention span)
-     * Generally, things get messy if we try to look too far back or especially forward compared to the size of the processing buffers
-     *
-     * If futureSpan samples are not available to look ahead from a timepoint, the test is delayed until the next processing cycle, and if it succeeds,
-     * the event occurs on the first sample of the next buffer. Thus, setting futureSpan too large will delay some events slightly.
+     * If futureSpan samples are not available to look ahead from a timepoint, the test is delayed until enough samples are available.
+     * If it succeeds, the event occurs on the first sample in the buffer when the test occurs, but the "crossing point"
+     * metadata field will contain the timepoint of the actual crossing.
      */
     int pastSpan;
     int futureSpan;
-    
+
     // fraction of spans required to be above / below threshold
     float pastStrict;
     float futureStrict;
-    
+
     //counters for delay keeping track of voting samples
     int pastCounter;
     int futureCounter;
-    
+
     //array for binary data of samples above/below threshold
     Array<bool> pastBinary;
     Array<bool> futureBinary;
     //array to compare jumpLimit
     Array<float> jumpSize;
-    
+
     // maximum absolute difference between x[k] and x[k-1] to trigger an event on x[k]
     bool useJumpLimit;
     float jumpLimit;
-    
+
     // ------internals-----------
-    
+
     // holds on to the previous processing buffer
     Array<float> lastBuffer;
-    
+
     // the next time at which the event channel should turn off, measured in samples
     // past the start of the current processing buffer. -1 if there is no scheduled shutoff.
     int sampsToShutoff;
-    
+
     // the next time at which the detector should be reenabled after a timeout period, measured in
     // samples past the start of the current processing buffer. Less than -numNext if there is no scheduled reenable (i.e. the detector is enabled).
     int sampsToReenable;
-    
+
     EventChannel* eventChannelPtr;
     MetaDataDescriptorArray eventMetaDataDescriptors;
-    
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetector);
 };
 
