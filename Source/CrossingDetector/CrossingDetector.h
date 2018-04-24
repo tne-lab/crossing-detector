@@ -86,20 +86,33 @@ public:
 
     void setParameter(int parameterIndex, float newValue) override;
 
+    bool enable() override;
     bool disable() override;
 
 private:
 
     // -----utility funcs--------
-    // Whether there should be a trigger at sample t0, where t0 may be negative (interpreted in relation to the end of prevBuffer)
-    // nSamples is the number of samples in the current buffer, determined within the process function.
-    // dir is the crossing direction(s) (see #defines above) (must be explicitly specified)
-    // uses passed nPrev and nNext rather than the member variables numPrev and numNext.
+
+    /* Whether there should be a trigger at sample t0, where t0 may be negative (interpreted in relation to the end of prevBuffer)
+     * nSamples is the number of samples in the current buffer, determined within the process function.
+     * dir is the crossing direction(s) (see #defines above) (must be explicitly specified)
+     * uses passed nPrev and nNext rather than the member variables numPrev and numNext.
+     */
     bool shouldTrigger(const float* rpCurr, int nSamples, int t0, float currThresh,
         bool currPosOn, bool currNegOn, int currPastSpan, int currFutureSpan);
 
     // Select a new random threshold using minThresh, maxThresh, and rng.
     float nextThresh();
+
+    /* Add "turning-on" and "turning-off" event for a crossing.
+     *  - bufferTs:       Timestamp of start of current buffer
+     *  - crossingOffset: Difference betweeen time of actual crossing and bufferTs
+     *  - bufferLength:   Number of samples in current buffer
+     *  - threshold:      Threshold at the time of the crossing
+     *  - crossingLevel:  Level of signal at the first sample after the crossing
+     */
+    void triggerEvent(juce::int64 bufferTs, int crossingOffset, int bufferLength,
+        float threshold, float crossingLevel);
 
     // ------parameters------------
 
@@ -118,10 +131,11 @@ private:
     bool negOn;
     int inputChan;
     int eventChan;
-    int shutoffChan; // temporary storage of chan w/ event that must be shut off; allows eventChan to be adjusted during acquisition
 
     int eventDuration; // in milliseconds
+    int eventDurationSamp;
     int timeout; // milliseconds after an event onset when no more events are allowed.
+    int timeoutSamp;
 
     /* Number of *additional* past and future samples to look at at each timepoint (attention span)
      * If futureSpan samples are not available to look ahead from a timepoint, the test is delayed until enough samples are available.
@@ -144,6 +158,7 @@ private:
     Array<bool> futureBinary;
     //array to compare jumpLimit
     Array<float> jumpSize;
+    Array<float> thresholdHistory;
 
     // maximum absolute difference between x[k] and x[k-1] to trigger an event on x[k]
     bool useJumpLimit;
@@ -151,19 +166,13 @@ private:
 
     // ------internals-----------
 
-    // holds on to the previous processing buffer
-    Array<float> lastBuffer;
-
-    // the next time at which the event channel should turn off, measured in samples
-    // past the start of the current processing buffer. -1 if there is no scheduled shutoff.
-    int sampsToShutoff;
-
     // the next time at which the detector should be reenabled after a timeout period, measured in
     // samples past the start of the current processing buffer. Less than -numNext if there is no scheduled reenable (i.e. the detector is enabled).
-    int sampsToReenable;
+    int sampToReenable;
 
     EventChannel* eventChannelPtr;
     MetaDataDescriptorArray eventMetaDataDescriptors;
+    TTLEventPtr turnoffEvent; // holds a turnoff event that must be added in a later buffer
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetector);
 };
