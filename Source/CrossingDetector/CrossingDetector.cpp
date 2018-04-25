@@ -99,6 +99,11 @@ void CrossingDetector::createEventChannels()
     // event-related metadata!
     eventMetaDataDescriptors.clearQuick();
 
+    MetaDataDescriptor* crossingPointDesc = new MetaDataDescriptor(MetaDataDescriptor::INT64, 1, "Crossing Point",
+        "Time when threshold was crossed", "crossing.point");
+    chan->addEventMetaData(crossingPointDesc);
+    eventMetaDataDescriptors.add(crossingPointDesc);
+
     MetaDataDescriptor* crossingLevelDesc = new MetaDataDescriptor(MetaDataDescriptor::FLOAT, 1, "Crossing level",
         "Voltage level at first sample after crossing", "crossing.level");
     chan->addEventMetaData(crossingLevelDesc);
@@ -113,11 +118,6 @@ void CrossingDetector::createEventChannels()
         "Direction of crossing: 1 = rising, 0 = falling", "crossing.direction");
     chan->addEventMetaData(directionDesc);
     eventMetaDataDescriptors.add(directionDesc);
-
-    MetaDataDescriptor* crossingPoint = new MetaDataDescriptor(MetaDataDescriptor::INT64, 1, "Crossing Point",
-        "Time when threshold was crossed", "crossing.point");
-    chan->addEventMetaData(crossingPoint);
-    eventMetaDataDescriptors.add(crossingPoint);
 
     eventChannelPtr = eventChannelArray.add(chan);
 }
@@ -434,6 +434,10 @@ void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
     MetaDataValueArray mdArray;
 
     int mdInd = 0;
+    MetaDataValue* crossingPointVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
+    crossingPointVal->setValue(bufferTs + crossingOffset);
+    mdArray.add(crossingPointVal);
+
     MetaDataValue* crossingLevelVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
     crossingLevelVal->setValue(crossingLevel);
     mdArray.add(crossingLevelVal);
@@ -445,10 +449,6 @@ void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
     MetaDataValue* directionVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
     directionVal->setValue(static_cast<juce::uint8>(crossingLevel > threshold));
     mdArray.add(directionVal);
-
-    MetaDataValue* crossingPointVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
-    crossingPointVal->setValue(bufferTs + crossingOffset);
-    mdArray.add(crossingPointVal);
 
     // Create events
     int currEventChan = eventChan;
