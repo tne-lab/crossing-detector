@@ -434,15 +434,15 @@ void CrossingDetectorEditor::updateSettings()
 void CrossingDetectorEditor::startAcquisition()
 {
     inputBox->setEnabled(false);
-    pastSpanEditable->getText(false);
-    futureSpanEditable->getText(false);
+    pastSpanEditable->setEnabled(false);
+    futureSpanEditable->setEnabled(false);
 }
 
 void CrossingDetectorEditor::stopAcquisition()
 {
     inputBox->setEnabled(true);
-    pastSpanEditable->getText(true);
-    futureSpanEditable->getText(true);
+    pastSpanEditable->setEnabled(true);
+    futureSpanEditable->setEnabled(true);
 }
 
 Visualizer* CrossingDetectorEditor::createNewCanvas()
