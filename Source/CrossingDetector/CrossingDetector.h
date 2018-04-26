@@ -65,8 +65,6 @@ enum
     pFutureStrict,
     pUseJumpLimit,
     pJumpLimit,
-    pPastCounter,
-    pFutureCounter
 };
 
 class CrossingDetector : public GenericProcessor
