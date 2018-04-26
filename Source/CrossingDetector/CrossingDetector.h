@@ -96,8 +96,7 @@ private:
      * dir is the crossing direction(s) (see #defines above) (must be explicitly specified)
      * uses passed nPrev and nNext rather than the member variables numPrev and numNext.
      */
-    bool shouldTrigger(const float* rpCurr, int nSamples, int t0, float currThresh,
-        bool currPosOn, bool currNegOn, int currPastSpan, int currFutureSpan);
+    bool shouldTrigger(bool currPosOn, bool currNegOn);
 
     // Select a new random threshold using minThresh, maxThresh, and rng.
     float nextThresh();
@@ -147,17 +146,6 @@ private:
     float pastStrict;
     float futureStrict;
 
-    //counters for delay keeping track of voting samples
-    int pastCounter;
-    int futureCounter;
-
-    //array for binary data of samples above/below threshold
-    Array<bool> pastBinary;
-    Array<bool> futureBinary;
-    //array to compare jumpLimit
-    Array<float> jumpSize;
-    Array<float> thresholdHistory;
-
     // maximum absolute difference between x[k] and x[k-1] to trigger an event on x[k]
     bool useJumpLimit;
     float jumpLimit;
@@ -167,6 +155,17 @@ private:
     // the next time at which the detector should be reenabled after a timeout period, measured in
     // samples past the start of the current processing buffer. Less than -numNext if there is no scheduled reenable (i.e. the detector is enabled).
     int sampToReenable;
+
+     //counters for delay keeping track of voting samples
+    int pastCounter;
+    int futureCounter;
+
+    //array for binary data of samples above/below threshold
+    Array<bool> pastBinary;
+    Array<bool> futureBinary;
+    //array to compare jumpLimit
+    Array<float> jumpSize;
+    Array<float> thresholdHistory;
 
     EventChannel* eventChannelPtr;
     MetaDataDescriptorArray eventMetaDataDescriptors;

@@ -209,7 +209,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
             continue;
 
         // check whether to trigger an event
-        if (shouldTrigger(rp, nSamples, i, currThresh, currPosOn, currNegOn, pastSpan, futureSpan))
+        if (shouldTrigger(currPosOn, currNegOn))
         {
             // add event
             int crossingOffset = i - futureSpan;
@@ -367,15 +367,14 @@ bool CrossingDetector::disable()
     return true;
 }
 
-bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, float currThresh,
-    bool currPosOn, bool currNegOn, int currPastSpan, int currFutureSpan)
+bool CrossingDetector::shouldTrigger(bool currPosOn, bool currNegOn)
 {
     if (!currPosOn && !currNegOn)
         return false;
 
     if (currPosOn && currNegOn)
-        return shouldTrigger(rpCurr, nSamples, t0, currThresh, true, false, currPastSpan, currFutureSpan) 
-        || shouldTrigger(rpCurr, nSamples, t0, currThresh, false, true, currPastSpan, currFutureSpan);
+        return shouldTrigger(true, false) 
+        || shouldTrigger(false, true);
 
     //check jumpLimit
     if (useJumpLimit && abs(jumpSize[pastSpan] - jumpSize[pastSpan + 1]) >= jumpLimit)
