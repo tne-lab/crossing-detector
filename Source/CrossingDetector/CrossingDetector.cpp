@@ -43,24 +43,17 @@ CrossingDetector::CrossingDetector()
     , futureSpan        (0)
     , useJumpLimit      (false)
     , jumpLimit         (5.0f)
-    , sampsToShutoff    (-1)
-    , sampsToReenable   (pastSpan + futureSpan + 1)
-    , shutoffChan       (-1)
+    , sampToReenable    (pastSpan + futureSpan + 1)
     , pastCounter       (0)
     , futureCounter     (0)
-
-    //binary arrays to keep track of threshold crossing, jumpSize array to compare to jumpLimit
+    , turnoffEvent      (nullptr)
 {
-    pastBinary.resize(pastSpan + 1);
-    pastBinary.clearQuick( );
-    pastBinary.insertMultiple(0, 0, pastSpan + 1);
-    futureBinary.resize(futureSpan + 1);
-    futureBinary.clearQuick( );
-    futureBinary.insertMultiple(0, 0, futureSpan + 1);
     setProcessorType(PROCESSOR_TYPE_FILTER);
-    jumpSize.resize(pastSpan + futureSpan + 2);
-    jumpSize.clearQuick();
+
+    pastBinary.insertMultiple(0, 0, pastSpan + 1);
+    futureBinary.insertMultiple(0, 0, futureSpan + 1);
     jumpSize.insertMultiple(0, 0, pastSpan + futureSpan + 2);
+    thresholdHistory.insertMultiple(0, 0, pastSpan + futureSpan + 2);
 }
 
 CrossingDetector::~CrossingDetector() {}
@@ -98,51 +91,63 @@ void CrossingDetector::createEventChannels()
     // event-related metadata!
     eventMetaDataDescriptors.clearQuick();
 
-    MetaDataDescriptor* eventLevelDesc = new MetaDataDescriptor(MetaDataDescriptor::FLOAT, 1, "Event level",
-        "Actual voltage level at sample where event occurred", "crossing.eventLevel");
-    chan->addEventMetaData(eventLevelDesc);
-    eventMetaDataDescriptors.add(eventLevelDesc);
+    MetaDataDescriptor* crossingPointDesc = new MetaDataDescriptor(MetaDataDescriptor::INT64, 1, "Crossing Point",
+        "Time when threshold was crossed", "crossing.point");
+    chan->addEventMetaData(crossingPointDesc);
+    eventMetaDataDescriptors.add(crossingPointDesc);
+
+    MetaDataDescriptor* crossingLevelDesc = new MetaDataDescriptor(MetaDataDescriptor::FLOAT, 1, "Crossing level",
+        "Voltage level at first sample after crossing", "crossing.level");
+    chan->addEventMetaData(crossingLevelDesc);
+    eventMetaDataDescriptors.add(crossingLevelDesc);
 
     MetaDataDescriptor* threshDesc = new MetaDataDescriptor(MetaDataDescriptor::FLOAT, 1, "Threshold",
         "Monitored voltage threshold", "crossing.threshold");
     chan->addEventMetaData(threshDesc);
     eventMetaDataDescriptors.add(threshDesc);
 
-    MetaDataDescriptor* posOnDesc = new MetaDataDescriptor(MetaDataDescriptor::UINT8, 1, "Ascending on",
-        "Equals 1 if an event is triggered for ascending crossings", "crossing.positive");
-    chan->addEventMetaData(posOnDesc);
-    eventMetaDataDescriptors.add(posOnDesc);
-
-    MetaDataDescriptor* negOnDesc = new MetaDataDescriptor(MetaDataDescriptor::UINT8, 1, "Descending on",
-        "Equals 1 if an event is triggered for descending crossings", "crossing.negative");
-    chan->addEventMetaData(negOnDesc);
-    eventMetaDataDescriptors.add(negOnDesc);
-
-    MetaDataDescriptor* crossingPoint = new MetaDataDescriptor(MetaDataDescriptor::INT64, 1, "Crossing Point",
-        "Time when threshold was crossed", "crossing.point");
-    chan->addEventMetaData(crossingPoint);
-    eventMetaDataDescriptors.add(crossingPoint);
+    MetaDataDescriptor* directionDesc = new MetaDataDescriptor(MetaDataDescriptor::UINT8, 1, "Direction",
+        "Direction of crossing: 1 = rising, 0 = falling", "crossing.direction");
+    chan->addEventMetaData(directionDesc);
+    eventMetaDataDescriptors.add(directionDesc);
 
     eventChannelPtr = eventChannelArray.add(chan);
 }
 
 void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
 {
-    // state to keep constant during each call
-    int currChan = inputChan;
-    int currPastSpan = pastSpan;
-    int currFutureSpan = futureSpan;
-
-    if (currChan < 0 || currChan >= continuousBuffer.getNumChannels()) // (shouldn't really happen)
-        return;
-
-    int nSamples = getNumSamples(currChan);
-    const float* rp = continuousBuffer.getReadPointer(currChan);
-
-    // loop has two functions: detect crossings and turn on events for the end of the previous buffer and most of the current buffer,
-    // or if an event is currently on, turn it off if it has been on for long enough.
-    for (int i = 0; i <= nSamples; i++)
+    if (inputChan < 0 || inputChan >= continuousBuffer.getNumChannels())
     {
+        jassertfalse;
+        return;
+    }
+
+    int nSamples = getNumSamples(inputChan);
+    const float* rp = continuousBuffer.getReadPointer(inputChan);
+    juce::int64 startTs = getTimestamp(inputChan);
+    juce::int64 endTs = startTs + nSamples; // 1 past end
+
+    // turn off event from previous buffer if necessary
+    if (turnoffEvent != nullptr && turnoffEvent->getTimestamp() < endTs)
+    {
+        int turnoffOffset = static_cast<int>(turnoffEvent->getTimestamp() - startTs);
+        if (turnoffOffset < 0)
+        {
+            // shouldn't happen; should be added during a previous buffer
+            jassertfalse;
+            turnoffEvent = nullptr;
+        }
+        else
+        {
+            addEvent(eventChannelPtr, turnoffEvent, turnoffOffset);
+            turnoffEvent = nullptr;
+        }
+    }
+
+    // loop over current buffer and add events for newly detected crossings
+    for (int i = 0; i < nSamples; ++i)
+    {
+        // state to keep constant during each iteration
         float currThresh;
         if (useRandomThresh)
         {
@@ -157,7 +162,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
 
         //in binary arrays move previous values back and make space for new value
         //include counter for above threshold
-        if(pastBinary[0] == 1)
+        if(pastSpan >= 1 && pastBinary[0] == 1)
         {
             pastCounter--;
         }
@@ -166,11 +171,11 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
             pastBinary.set(j, pastBinary[j + 1]);
         }
         pastBinary.set(pastSpan, futureBinary[0]);
-        if(pastBinary[pastSpan-1] == 1)
+        if(pastSpan >= 1 && pastBinary[pastSpan-1] == 1)
         {
             pastCounter++;
         }
-        if(futureBinary[1] == 1)
+        if(futureSpan >= 1 && futureBinary[1] == 1)
         {
             futureCounter--;
         }
@@ -182,110 +187,50 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         if(rp[i] - currThresh > 0)
         {
             futureBinary.set(futureSpan, 1);
-            futureCounter++;
+            if (futureSpan >= 1)
+                futureCounter++;
         }
         else
         {
             futureBinary.set(futureSpan, 0);
         }
-        //move back jumpSize values back to make space for new value
+        //move back jumpSize and thresholdHistory values back to make space for new values
         for (int j = 0; j < pastSpan + futureSpan + 1; j++)
         {
             jumpSize.set(j, jumpSize[j + 1]);
+            thresholdHistory.set(j, thresholdHistory[j + 1]);
         }
         //add new value to jumpSize array
         jumpSize.set(pastSpan + futureSpan + 1, rp[i]);
+        thresholdHistory.set(pastSpan + futureSpan + 1, currThresh);
 
+        if (i < sampToReenable)
+            // can't trigger an event now
+            continue;
 
-        // if enabled, check whether to trigger an event
-        bool turnOn = (i >= sampsToReenable && i < nSamples && shouldTrigger(rp, nSamples, i, currThresh, currPosOn, currNegOn, currPastSpan, currFutureSpan));
-
-        // if not triggering, check whether event should be shut off (operates on [0, nSamples) )
-        bool turnOff = (!turnOn && sampsToShutoff >= 0 && i >= sampsToShutoff);
-
-        if (turnOn || turnOff)
+        // check whether to trigger an event
+        if (shouldTrigger(rp, nSamples, i, currThresh, currPosOn, currNegOn, pastSpan, futureSpan))
         {
-            // actual sample when event fires (start of current buffer if turning on and the crossing was before this buffer.)
-            int eventTime = turnOn ? std::max(i - currFutureSpan, 0) : sampsToShutoff;
-            int64 timestamp = getTimestamp(currChan) + eventTime;
-            int64 crossingTimestamp = getTimestamp(currChan) + (i - currFutureSpan);
+            // add event
+            int crossingOffset = i - futureSpan;
+            float crossingThreshold = thresholdHistory[pastSpan + 1];
+            float crossingLevel = jumpSize[pastSpan + 1];
+            triggerEvent(startTs, crossingOffset, nSamples, crossingThreshold, crossingLevel);
+            
+            // update sampToReenable
+            sampToReenable = i + 1 + timeoutSamp;
 
-            // construct the event's metadata array
-            // The order of metadata has to match the order they are stored in createEventChannels.
-            MetaDataValueArray mdArray;
-
-            int mdInd = 0;
-            MetaDataValue* eventLevelVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
-            eventLevelVal->setValue(rp[eventTime]);
-            mdArray.add(eventLevelVal);
-
-            MetaDataValue* threshVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
-            threshVal->setValue(currThresh);
-            mdArray.add(threshVal);
-
-            MetaDataValue* posOnVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
-            posOnVal->setValue(static_cast<uint8>(posOn));
-            mdArray.add(posOnVal);
-
-            MetaDataValue* negOnVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
-            negOnVal->setValue(static_cast<uint8>(negOn));
-            mdArray.add(negOnVal);
-
-            MetaDataValue* crossingPointVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
-            crossingPointVal->setValue(crossingTimestamp);
-            mdArray.add(crossingPointVal);
-
-            if (turnOn)
+            // if using random thresholds, set a new threshold
+            if (useRandomThresh)
             {
-                // add event
-                uint8 ttlData = 1 << eventChan;
-                TTLEventPtr event = TTLEvent::createTTLEvent(eventChannelPtr, timestamp, &ttlData,
-                    sizeof(uint8), mdArray, eventChan);
-                addEvent(eventChannelPtr, event, eventTime);
-
-                // if using random thresholds, set a new threshold
-                if (useRandomThresh)
-                {
-                    currRandomThresh = nextThresh();
-                    thresholdVal = currRandomThresh;
-                }
-
-                // schedule event turning off and timeout period ending
-                float sampleRate = getDataChannel(currChan)->getSampleRate();
-                int eventDurationSamps = static_cast<int>(ceil(eventDuration * sampleRate / 1000.0f));
-                int timeoutSamps = static_cast<int>(floor(timeout * sampleRate / 1000.0f));
-                sampsToShutoff = eventTime + eventDurationSamps;
-                sampsToReenable = eventTime + timeoutSamps;
-            }
-            else
-            {
-                // add (turning-off) event
-                uint8 ttlData = 0;
-                int realEventChan = (shutoffChan != -1 ? shutoffChan : eventChan);
-                TTLEventPtr event = TTLEvent::createTTLEvent(eventChannelPtr, timestamp,
-                    &ttlData, sizeof(uint8), mdArray, realEventChan);
-                addEvent(eventChannelPtr, event, eventTime);
-
-                // reset shutoffChan (now eventChan has been changed)
-                shutoffChan = -1;
+                currRandomThresh = nextThresh();
+                thresholdVal = currRandomThresh;
             }
         }
     }
 
-    if (sampsToShutoff < nSamples)
-        // no scheduled shutoff, so keep it at -1
-        sampsToShutoff = -1;
-    else
-        // shift so it is relative to the next buffer
-        sampsToShutoff -= nSamples;
-
-    if (sampsToReenable < nSamples)
-        // already reenabled
-        sampsToReenable = -1;
-    else
-        // shift so it is relative to the next buffer
-        sampsToReenable -= nSamples;
-
+    // shift sampToReenable so it is relative to the next buffer
+    sampToReenable = std::max(0, sampToReenable - nSamples);
 }
 
 // all new values should be validated before this function is called!
@@ -341,26 +286,37 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         break;
 
     case pEventChan:
-        // if we're in the middle of an event, keep track of the old channel until it's done.
-        if (sampsToShutoff > -1)
-            shutoffChan = eventChan;
         eventChan = static_cast<int>(newValue);
         break;
 
     case pEventDur:
         eventDuration = static_cast<int>(newValue);
+        if (CoreServices::getAcquisitionStatus())
+        {
+            float sampleRate = getDataChannel(inputChan)->getSampleRate();
+            eventDurationSamp = static_cast<int>(ceil(eventDuration * sampleRate / 1000.0f));
+        }
         break;
 
     case pTimeout:
         timeout = static_cast<int>(newValue);
+        if (CoreServices::getAcquisitionStatus())
+        {
+            float sampleRate = getDataChannel(inputChan)->getSampleRate();
+            timeoutSamp = static_cast<int>(floor(timeout * sampleRate / 1000.0f));
+        }
         break;
 
     case pPastSpan:
         pastSpan = static_cast<int>(newValue);
-        sampsToReenable = pastSpan + futureSpan + 1;
-        pastBinary.resize(pastSpan + 1);
-        pastBinary.clearQuick( );
+        sampToReenable = pastSpan + futureSpan + 1;
+
+        pastBinary.clearQuick();
         pastBinary.insertMultiple(0, 0, pastSpan + 1);
+        pastCounter = 0; // must reflect current contents of pastBinary
+
+        jumpSize.resize(pastSpan + futureSpan + 2);
+        thresholdHistory.resize(pastSpan + futureSpan + 2);
         break;
 
     case pPastStrict:
@@ -369,10 +325,14 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 
     case pFutureSpan:
         futureSpan = static_cast<int>(newValue);
-        sampsToReenable = pastSpan + futureSpan + 1;
-        futureBinary.resize(futureSpan + 1);
-        futureBinary.clearQuick( );
+        sampToReenable = pastSpan + futureSpan + 1;
+
+        futureBinary.clearQuick();
         futureBinary.insertMultiple(0, 0, futureSpan + 1);
+        futureCounter = 0; // must reflect current contents of futureBinary
+
+        jumpSize.resize(pastSpan + futureSpan + 2);
+        thresholdHistory.resize(pastSpan + futureSpan + 2);
         break;
 
     case pFutureStrict:
@@ -389,10 +349,21 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
     }
 }
 
+bool CrossingDetector::enable()
+{
+    // input channel is fixed once acquisition starts, so convert timeout and eventDuration
+    float sampleRate = getDataChannel(inputChan)->getSampleRate();
+    eventDurationSamp = static_cast<int>(ceil(eventDuration * sampleRate / 1000.0f));
+    timeoutSamp = static_cast<int>(floor(timeout * sampleRate / 1000.0f));
+    return isEnabled;
+}
+
 bool CrossingDetector::disable()
 {
     // set this to pastSpan so that we don't trigger on old data when we start again.
-    sampsToReenable = pastSpan + futureSpan + 1;
+    sampToReenable = pastSpan + futureSpan + 1;
+    // cancel any pending turning-off
+    turnoffEvent = nullptr;
     return true;
 }
 
@@ -403,7 +374,7 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
         return false;
 
     if (currPosOn && currNegOn)
-        return shouldTrigger(rpCurr, nSamples, t0, currThresh, true, false, currPastSpan, currFutureSpan)
+        return shouldTrigger(rpCurr, nSamples, t0, currThresh, true, false, currPastSpan, currFutureSpan) 
         || shouldTrigger(rpCurr, nSamples, t0, currThresh, false, true, currPastSpan, currFutureSpan);
 
     //check jumpLimit
@@ -415,7 +386,7 @@ bool CrossingDetector::shouldTrigger(const float* rpCurr, int nSamples, int t0, 
     int pastSamplesNeeded = pastSpan ? static_cast<int>(ceil(pastSpan * pastStrict)) : 0;
     int futureSamplesNeeded = futureSpan ? static_cast<int>(ceil(futureSpan * futureStrict)) : 0;
     // if enough values cross threshold
-    if(posOn)
+    if(currPosOn)
     {
         int pastZero = pastSpan - pastCounter;
         if(pastZero >= pastSamplesNeeded && futureCounter >= futureSamplesNeeded &&
@@ -447,4 +418,57 @@ float CrossingDetector::nextThresh()
 {
     float range = maxThresh - minThresh;
     return minThresh + range * rng.nextFloat();
+}
+
+void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
+    int bufferLength, float threshold, float crossingLevel)
+{
+    // Construct metadata array
+    // The order has to match the order the descriptors are stored in createEventChannels.
+    MetaDataValueArray mdArray;
+
+    int mdInd = 0;
+    MetaDataValue* crossingPointVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
+    crossingPointVal->setValue(bufferTs + crossingOffset);
+    mdArray.add(crossingPointVal);
+
+    MetaDataValue* crossingLevelVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
+    crossingLevelVal->setValue(crossingLevel);
+    mdArray.add(crossingLevelVal);
+
+    MetaDataValue* threshVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
+    threshVal->setValue(threshold);
+    mdArray.add(threshVal);
+
+    MetaDataValue* directionVal = new MetaDataValue(*eventMetaDataDescriptors[mdInd++]);
+    directionVal->setValue(static_cast<juce::uint8>(crossingLevel > threshold));
+    mdArray.add(directionVal);
+
+    // Create events
+    int currEventChan = eventChan;
+    juce::uint8 ttlDataOn = 1 << currEventChan;
+    int sampleNumOn = std::max(crossingOffset, 0);
+    juce::int64 eventTsOn = bufferTs + sampleNumOn;
+    TTLEventPtr eventOn = TTLEvent::createTTLEvent(eventChannelPtr, eventTsOn,
+        &ttlDataOn, sizeof(juce::uint8), mdArray, currEventChan);
+    addEvent(eventChannelPtr, eventOn, sampleNumOn);
+
+    juce::uint8 ttlDataOff = 0;
+    int sampleNumOff = sampleNumOn + eventDurationSamp;
+    juce::int64 eventTsOff = bufferTs + sampleNumOff;
+    TTLEventPtr eventOff = TTLEvent::createTTLEvent(eventChannelPtr, eventTsOff,
+        &ttlDataOff, sizeof(juce::uint8), mdArray, currEventChan);
+
+    // Add or schedule turning-off event
+    // We don't care whether there are other turning-offs scheduled to occur either in
+    // this buffer or later. The abilities to change event duration during acquisition and for
+    // events to be longer than the timeout period create a lot of possibilities and edge cases,
+    // but overwriting turnoffEvent unconditionally guarantees that this and all previously
+    // turned-on events will be turned off by this "turning-off" if they're not already off.
+    if (sampleNumOff <= bufferLength)
+        // add event now
+        addEvent(eventChannelPtr, eventOff, sampleNumOff);
+    else
+        // save for later
+        turnoffEvent = eventOff;
 }
