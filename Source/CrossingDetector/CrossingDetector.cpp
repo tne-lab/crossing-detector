@@ -47,21 +47,13 @@ CrossingDetector::CrossingDetector()
     , pastCounter       (0)
     , futureCounter     (0)
     , turnoffEvent      (nullptr)
-
-    //binary arrays to keep track of threshold crossing, jumpSize array to compare to jumpLimit
 {
-    pastBinary.resize(pastSpan + 1);
-    pastBinary.clearQuick( );
-    pastBinary.insertMultiple(0, 0, pastSpan + 1);
-    futureBinary.resize(futureSpan + 1);
-    futureBinary.clearQuick( );
-    futureBinary.insertMultiple(0, 0, futureSpan + 1);
     setProcessorType(PROCESSOR_TYPE_FILTER);
-    jumpSize.resize(pastSpan + futureSpan + 2);
-    jumpSize.clearQuick();
+
+    pastBinary.insertMultiple(0, 0, pastSpan + 1);
+    futureBinary.insertMultiple(0, 0, futureSpan + 1);
     jumpSize.insertMultiple(0, 0, pastSpan + futureSpan + 2);
-    
-    thresholdHistory.resize(pastSpan + futureSpan + 2);
+    thresholdHistory.insertMultiple(0, 0, pastSpan + futureSpan + 2);
 }
 
 CrossingDetector::~CrossingDetector() {}
@@ -318,10 +310,11 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
     case pPastSpan:
         pastSpan = static_cast<int>(newValue);
         sampToReenable = pastSpan + futureSpan + 1;
-        pastBinary.resize(pastSpan + 1);
-        pastBinary.clearQuick( );
+
+        pastBinary.clearQuick();
         pastBinary.insertMultiple(0, 0, pastSpan + 1);
         pastCounter = 0; // must reflect current contents of pastBinary
+
         jumpSize.resize(pastSpan + futureSpan + 2);
         thresholdHistory.resize(pastSpan + futureSpan + 2);
         break;
@@ -333,10 +326,11 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
     case pFutureSpan:
         futureSpan = static_cast<int>(newValue);
         sampToReenable = pastSpan + futureSpan + 1;
-        futureBinary.resize(futureSpan + 1);
-        futureBinary.clearQuick( );
+
+        futureBinary.clearQuick();
         futureBinary.insertMultiple(0, 0, futureSpan + 1);
         futureCounter = 0; // must reflect current contents of futureBinary
+
         jumpSize.resize(pastSpan + futureSpan + 2);
         thresholdHistory.resize(pastSpan + futureSpan + 2);
         break;
