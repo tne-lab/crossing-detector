@@ -25,12 +25,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define CROSSING_DETECTOR_H_INCLUDED
 
 #ifdef _WIN32
-#define NOMINMAX
 #include <Windows.h>
 #endif
 
 #include <ProcessorHeaders.h>
-#include <algorithm> // max
+#include "CircularArray.h"
 
 /*
  * The crossing detector plugin is designed to read in one continuous channel c, and generate events on one events channel
@@ -39,33 +38,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *  - how strictly to filter transient level changes, by adjusting the required number and percent of past and future samples to be above/below the threshold
  *  - the duration of the generated event
  *  - the minimum time to wait between events ("timeout")
+ *  - whether to use a constant threshold, draw one randomly from a range for each event, or read thresholds from an input channel
  *
  * All ontinuous signals pass through unchanged, so multiple CrossingDetectors can be
  * chained together in order to operate on more than one channel.
  *
  * @see GenericProcessor
  */
-
-// parameter indices
-enum
-{
-    pRandThresh,
-    pMinThresh,
-    pMaxThresh,
-    pThreshold,
-    pPosOn,
-    pNegOn,
-    pInputChan,
-    pEventChan,
-    pEventDur,
-    pTimeout,
-    pPastSpan,
-    pPastStrict,
-    pFutureSpan,
-    pFutureStrict,
-    pUseJumpLimit,
-    pJumpLimit,
-};
 
 class CrossingDetector : public GenericProcessor
 {
@@ -88,19 +67,40 @@ public:
     bool disable() override;
 
 private:
+    enum ThresholdType { CONSTANT, RANDOM, CHANNEL };
+
+    enum Parameter
+    {
+        THRESH_TYPE,
+        MIN_RAND_THRESH,
+        MAX_RAND_THRESH,
+        CONST_THRESH,
+        THRESH_CHAN,
+        INPUT_CHAN,
+        EVENT_CHAN,
+        POS_ON,
+        NEG_ON,
+        EVENT_DUR,
+        TIMEOUT,
+        PAST_SPAN,
+        PAST_STRICT,
+        FUTURE_SPAN,
+        FUTURE_STRICT,
+        USE_JUMP_LIMIT,
+        JUMP_LIMIT,
+    };
 
     // -----utility funcs--------
 
-    /* Whether there should be a trigger at sample t0, where t0 may be negative (interpreted in relation to the end of prevBuffer)
-     * nSamples is the number of samples in the current buffer, determined within the process function.
-     * dir is the crossing direction(s) (see #defines above) (must be explicitly specified)
-     * uses passed nPrev and nNext rather than the member variables numPrev and numNext.
+    /* Whether there should be a trigger in the given direction (true = rising, float = falling),
+     * given the current pastCounter and futureCounter and the passed values and thresholds
+     * surrounding the point where a crossing may be.
      */
-    bool shouldTrigger(bool currPosOn, bool currNegOn);
+    bool shouldTrigger(bool direction, float preVal, float postVal, float preThresh, float postThresh);
 
     // Select a new random threshold using minThresh, maxThresh, and rng.
     float nextThresh();
-
+ 
     /* Add "turning-on" and "turning-off" event for a crossing.
      *  - bufferTs:       Timestamp of start of current buffer
      *  - crossingOffset: Difference betweeen time of actual crossing and bufferTs
@@ -111,23 +111,37 @@ private:
     void triggerEvent(juce::int64 bufferTs, int crossingOffset, int bufferLength,
         float threshold, float crossingLevel);
 
+    // Retrieves the full source subprocessor ID of the given channel.
+    juce::uint32 getSubProcFullID(int chanNum) const;
+
+    /* Returns true if the given chanNum corresponds to an input
+    * and that channel has the same source subprocessor as the
+    * selected inputChannel, but is not equal to the inputChannel.
+    */
+    bool isCompatibleWithInput(int chanNum) const;
+
+    // Returns a string to display in the threshold box when using a threshold channel
+    static String toChannelThreshString(int chanNum);
+
     // ------parameters------------
 
-    // if using fixed threshold:
-    float threshold;
-    Value thresholdVal; // underlying value of the threshold label
+    ThresholdType thresholdType;
+
+    // if using constant threshold:
+    float constantThresh;
 
     // if using random thresholds:
-    bool useRandomThresh;
-    float minThresh;
-    float maxThresh;
+    float minRandomThresh;
+    float maxRandomThresh;
     float currRandomThresh;
-    Random rng;
 
+    // if using channel threshold:
+    int thresholdChannel;
+
+    int inputChannel;
+    int eventChannel;
     bool posOn;
     bool negOn;
-    int inputChan;
-    int eventChan;
 
     int eventDuration; // in milliseconds
     int eventDurationSamp;
@@ -156,20 +170,24 @@ private:
     // samples past the start of the current processing buffer. Less than -numNext if there is no scheduled reenable (i.e. the detector is enabled).
     int sampToReenable;
 
-     //counters for delay keeping track of voting samples
+     // counters for delay keeping track of voting samples
     int pastCounter;
     int futureCounter;
 
-    //array for binary data of samples above/below threshold
-    Array<bool> pastBinary;
-    Array<bool> futureBinary;
-    //array to compare jumpLimit
-    Array<float> jumpSize;
-    Array<float> thresholdHistory;
+    // arrays to implement past/future voting
+    CircularArray<float> inputHistory;
+    CircularArray<float> thresholdHistory;
 
     EventChannel* eventChannelPtr;
     MetaDataDescriptorArray eventMetaDataDescriptors;
     TTLEventPtr turnoffEvent; // holds a turnoff event that must be added in a later buffer
+
+    Value thresholdVal; // underlying value of the threshold label
+
+    Random rng; // for random thresholds
+
+    // full subprocessor ID of input channel (or 0 if none selected)
+    juce::uint32 validSubProcFullID;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetector);
 };

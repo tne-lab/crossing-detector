@@ -26,27 +26,32 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <VisualizerEditorHeaders.h>
 #include <VisualizerWindowHeaders.h>
-#include <string>
-#include <climits>
-#include <cfloat>
-#include <algorithm>
 
 /*
 Editor (in signal chain) contains:
 - Input channel selector
 - Ouptput event channel selector
 - Direction ("rising" and "falling") buttons
-- Threshold control (and indicator when threshold randomization is on)
+- Threshold control (and indicator when random or channel threshold is selected)
 - Event timeout control
 
 Canvas/visualizer contains:
-- Threshold randomization toggle, minimum and maximum thresh boxes
-- Slope (jump size across threshold) limiting toggle and max jump box
+- Threshold type selection - constant, random, or channel (with parameters)
+- Jump limiting toggle and max jump box
 - Voting settings (pre/post event span and strictness)
 - Event duration control
 
 @see GenericEditor
 */
+
+
+// LookAndFeel class with radio-button-style ToggleButton
+class RadioButtonLookAndFeel : public LookAndFeel_V2
+{
+    void drawTickBox(Graphics& g, Component& component, float x, float y, float w, float h,
+        const bool ticked, const bool isEnabled,
+        const bool isMouseOverButton, const bool isButtonDown) override;
+};
 
 class CrossingDetectorCanvas;
 
@@ -65,6 +70,7 @@ public:
     void buttonEvent(Button* button) override;
 
     void updateSettings() override;
+    void updateChannelThreshBox();
 
     // disable input channel selection during acquisition so that events work correctly
     void startAcquisition() override;
@@ -78,17 +84,18 @@ public:
     void loadCustomParameters(XmlElement* xml) override;
 
 private:
-    typedef juce::Rectangle<int> Rectangle;
 
     // Basic UI element creation methods. Always register "this" (the editor) as the listener,
     // but may specify a different Component in which to actually display the element.
     Label* createEditable(const String& name, const String& initialValue,
-        const String& tooltip, Rectangle bounds);
-    Label* createLabel(const String& name, const String& text, Rectangle bounds);
+        const String& tooltip, juce::Rectangle<int> bounds);
+    Label* createLabel(const String& name, const String& text, juce::Rectangle<int> bounds);
 
     // Utilities for parsing entered values
     static bool updateIntLabel(Label* label, int min, int max, int defaultValue, int* out);
     static bool updateFloatLabel(Label* label, float min, float max, float defaultValue, float* out);
+
+    RadioButtonLookAndFeel rbLookAndFeel;
 
     // top row (channels)
     ScopedPointer<Label> inputLabel;
@@ -100,8 +107,8 @@ private:
     ScopedPointer<UtilityButton> risingButton;
     ScopedPointer<UtilityButton> fallingButton;
     ScopedPointer<Label> acrossLabel;
-    ScopedPointer<Label> thresholdEditable;
-
+    ScopedPointer<Label> thresholdEditable; 
+     
     // bottom row (timeout)
     ScopedPointer<Label> timeoutLabel;
     ScopedPointer<Label> timeoutEditable;
@@ -113,12 +120,24 @@ private:
 
     ScopedPointer<Label> optionsPanelTitle;
     
+    ScopedPointer<Label> thresholdTitle;
+
+    const static int threshRadioId = 1;
+
+    ScopedPointer<ToggleButton> constantThreshButton;
+
     // threshold randomization
     ScopedPointer<ToggleButton> randomizeButton;
     ScopedPointer<Label> minThreshLabel;
     ScopedPointer<Label> minThreshEditable;
     ScopedPointer<Label> maxThreshLabel;
     ScopedPointer<Label> maxThreshEditable;
+
+    // threshold from channel
+    ScopedPointer<ToggleButton> channelThreshButton;
+    ScopedPointer<ComboBox> channelThreshBox; 
+
+    ScopedPointer<Label> criteriaTitle;
 
     // jump limiting
     ScopedPointer<ToggleButton> limitButton;
@@ -141,6 +160,8 @@ private:
     ScopedPointer<Label> futureSpanEditable;
 
     ScopedPointer<Label> votingFooter;
+
+    ScopedPointer<Label> outputTitle;
 
     // event duration
     ScopedPointer<Label> durLabel;

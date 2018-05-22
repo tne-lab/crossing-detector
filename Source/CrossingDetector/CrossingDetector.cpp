@@ -26,15 +26,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 CrossingDetector::CrossingDetector()
     : GenericProcessor  ("Crossing Detector")
-    , threshold         (0.0f)
-    , useRandomThresh   (false)
-    , minThresh         (-180)
-    , maxThresh         (180)
-    , thresholdVal      (0.0)
+    , thresholdType     (CONSTANT)
+    , constantThresh    (0.0f)
+    , minRandomThresh   (-180)
+    , maxRandomThresh   (180)
+    , thresholdChannel  (-1)
+    , inputChannel      (0)
+    , validSubProcFullID(0)
+    , eventChannel      (0)
     , posOn             (true)
     , negOn             (false)
-    , inputChan         (0)
-    , eventChan         (0)
     , eventDuration     (5)
     , timeout           (1000)
     , pastStrict        (1.0f)
@@ -46,14 +47,12 @@ CrossingDetector::CrossingDetector()
     , sampToReenable    (pastSpan + futureSpan + 1)
     , pastCounter       (0)
     , futureCounter     (0)
+    , inputHistory      (pastSpan + futureSpan + 2)
+    , thresholdHistory  (pastSpan + futureSpan + 2)
     , turnoffEvent      (nullptr)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
-
-    pastBinary.insertMultiple(0, 0, pastSpan + 1);
-    futureBinary.insertMultiple(0, 0, futureSpan + 1);
-    jumpSize.insertMultiple(0, 0, pastSpan + futureSpan + 2);
-    thresholdHistory.insertMultiple(0, 0, pastSpan + futureSpan + 2);
+    thresholdVal = constantThresh;
 }
 
 CrossingDetector::~CrossingDetector() {}
@@ -67,7 +66,7 @@ AudioProcessorEditor* CrossingDetector::createEditor()
 void CrossingDetector::createEventChannels()
 {
     // add detection event channel
-    const DataChannel* in = getDataChannel(inputChan);
+    const DataChannel* in = getDataChannel(inputChannel);
     float sampleRate = in ? in->getSampleRate() : CoreServices::getGlobalSampleRate();
     EventChannel* chan = new EventChannel(EventChannel::TTL, 8, 1, sampleRate, this);
     chan->setName("Crossing detector output");
@@ -116,15 +115,15 @@ void CrossingDetector::createEventChannels()
 
 void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
 {
-    if (inputChan < 0 || inputChan >= continuousBuffer.getNumChannels())
+    if (inputChannel < 0 || inputChannel >= continuousBuffer.getNumChannels())
     {
         jassertfalse;
         return;
     }
 
-    int nSamples = getNumSamples(inputChan);
-    const float* rp = continuousBuffer.getReadPointer(inputChan);
-    juce::int64 startTs = getTimestamp(inputChan);
+    int nSamples = getNumSamples(inputChannel);
+    const float* rp = continuousBuffer.getReadPointer(inputChannel);
+    juce::int64 startTs = getTimestamp(inputChannel);
     juce::int64 endTs = startTs + nSamples; // 1 past end
 
     // turn off event from previous buffer if necessary
@@ -144,84 +143,100 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         }
     }
 
+    // store threshold for each sample of current buffer
+    Array<float> currThresholds;
+    currThresholds.resize(nSamples);
+
+    // define lambdas to access history values more easily
+    auto inputAt = [=](int index)
+    {
+        return index < 0 ? inputHistory[index] : rp[index];
+    };
+
+    auto thresholdAt = [&, this](int index)
+    {
+        return index < 0 ? thresholdHistory[index] : currThresholds[index];
+    };
+
     // loop over current buffer and add events for newly detected crossings
     for (int i = 0; i < nSamples; ++i)
     {
         // state to keep constant during each iteration
-        float currThresh;
-        if (useRandomThresh)
-        {
-            currThresh = currRandomThresh;
-        }
-        else
-        {
-            currThresh = threshold;
-        }
         bool currPosOn = posOn;
         bool currNegOn = negOn;
 
-        //in binary arrays move previous values back and make space for new value
-        //include counter for above threshold
-        if(pastSpan >= 1 && pastBinary[0] == 1)
+        // get and save threshold for this sample
+        switch (thresholdType)
         {
-            pastCounter--;
+        case CONSTANT:
+            currThresholds.set(i, constantThresh);
+            break;
+
+        case RANDOM:
+            currThresholds.set(i, currRandomThresh);
+            break;
+
+        case CHANNEL:
+            currThresholds.set(i, continuousBuffer.getSample(thresholdChannel, i));
+            break;
         }
-        for (int j = 0; j < pastSpan; j++)
+
+        // update pastCounter and futureCounter
+        if (pastSpan > 0)
         {
-            pastBinary.set(j, pastBinary[j + 1]);
+            int indLeaving = i - (pastSpan + futureSpan + 2);
+            if (inputAt(indLeaving) > thresholdAt(indLeaving))
+            {
+                pastCounter--;
+            }
+
+            int indEntering = i - (futureSpan + 2);
+            if (inputAt(indEntering) > thresholdAt(indEntering))
+            {
+                pastCounter++;
+            }
         }
-        pastBinary.set(pastSpan, futureBinary[0]);
-        if(pastSpan >= 1 && pastBinary[pastSpan-1] == 1)
+
+        if (futureSpan > 0)
         {
-            pastCounter++;
-        }
-        if(futureSpan >= 1 && futureBinary[1] == 1)
-        {
-            futureCounter--;
-        }
-        for (int j = 0; j < futureSpan; j++)
-        {
-            futureBinary.set(j, futureBinary[j + 1]);
-        }
-        //add new value to end of binary array
-        if(rp[i] - currThresh > 0)
-        {
-            futureBinary.set(futureSpan, 1);
-            if (futureSpan >= 1)
+            int indLeaving = i - futureSpan;
+            if (inputAt(indLeaving) > thresholdAt(indLeaving))
+            {
+                futureCounter--;
+            }
+
+            int indEntering = i;
+            if (inputAt(indEntering) > thresholdAt(indEntering))
+            {
                 futureCounter++;
+            }
         }
-        else
-        {
-            futureBinary.set(futureSpan, 0);
-        }
-        //move back jumpSize and thresholdHistory values back to make space for new values
-        for (int j = 0; j < pastSpan + futureSpan + 1; j++)
-        {
-            jumpSize.set(j, jumpSize[j + 1]);
-            thresholdHistory.set(j, thresholdHistory[j + 1]);
-        }
-        //add new value to jumpSize array
-        jumpSize.set(pastSpan + futureSpan + 1, rp[i]);
-        thresholdHistory.set(pastSpan + futureSpan + 1, currThresh);
 
         if (i < sampToReenable)
+        {
             // can't trigger an event now
             continue;
+        }
+
+        int crossingOffset = i - futureSpan;
+
+        float preVal = inputAt(crossingOffset - 1);
+        float preThresh = thresholdAt(crossingOffset - 1);
+        float postVal = inputAt(crossingOffset);
+        float postThresh = thresholdAt(crossingOffset);
 
         // check whether to trigger an event
-        if (shouldTrigger(currPosOn, currNegOn))
+        if (currPosOn && shouldTrigger(true, preVal, postVal, preThresh, postThresh) ||
+            currNegOn && shouldTrigger(false, preVal, postVal, preThresh, postThresh))
         {
             // add event
-            int crossingOffset = i - futureSpan;
-            float crossingThreshold = thresholdHistory[pastSpan + 1];
-            float crossingLevel = jumpSize[pastSpan + 1];
-            triggerEvent(startTs, crossingOffset, nSamples, crossingThreshold, crossingLevel);
+            triggerEvent(startTs, crossingOffset, nSamples, postThresh, postVal);
             
             // update sampToReenable
             sampToReenable = i + 1 + timeoutSamp;
 
             // if using random thresholds, set a new threshold
-            if (useRandomThresh)
+            if (thresholdType == RANDOM)
             {
                 currRandomThresh = nextThresh();
                 thresholdVal = currRandomThresh;
@@ -229,8 +244,13 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         }
     }
 
+    // update inputHistory and thresholdHistory
+    inputHistory.enqueueArray(rp, nSamples);
+    float* rpThresh = currThresholds.getRawDataPointer();
+    thresholdHistory.enqueueArray(rpThresh, nSamples);
+
     // shift sampToReenable so it is relative to the next buffer
-    sampToReenable = std::max(0, sampToReenable - nSamples);
+    sampToReenable = jmax(0, sampToReenable - nSamples);
 }
 
 // all new values should be validated before this function is called!
@@ -238,112 +258,138 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 {
     switch (parameterIndex)
     {
-    case pRandThresh:
-        useRandomThresh = static_cast<bool>(newValue);
-        // update threshold
-        float newThresh;
-        if (useRandomThresh)
+    case THRESH_TYPE:
+        thresholdType = static_cast<ThresholdType>(static_cast<int>(newValue));
+
+        switch (thresholdType)
         {
-            newThresh = nextThresh();
-            currRandomThresh = newThresh;
+        case CONSTANT:
+            thresholdVal = constantThresh;
+            break;
+
+        case RANDOM:
+            // get new random threshold
+            currRandomThresh = nextThresh();
+            thresholdVal = currRandomThresh;
+            break;
+
+        case CHANNEL:
+            jassert(isCompatibleWithInput(thresholdChannel));
+            thresholdVal = toChannelThreshString(thresholdChannel);
+        }
+
+        break;
+
+    case MIN_RAND_THRESH:
+        minRandomThresh = newValue;
+        currRandomThresh = nextThresh();
+        if (thresholdType == RANDOM)
+        {
+            thresholdVal = currRandomThresh;
+        }
+        break;
+
+    case MAX_RAND_THRESH:
+        maxRandomThresh = newValue;
+        currRandomThresh = nextThresh();
+        if (thresholdType == RANDOM)
+        {
+            thresholdVal = currRandomThresh;
+        }
+        break;
+
+    case CONST_THRESH:
+        constantThresh = newValue;
+        break;
+
+    case THRESH_CHAN:
+        jassert(isCompatibleWithInput(static_cast<int>(newValue)));
+        thresholdChannel = static_cast<int>(newValue);
+        if (thresholdType == CHANNEL)
+        {
+            thresholdVal = toChannelThreshString(thresholdChannel);
+        }
+        break;
+
+    case INPUT_CHAN:
+        if (newValue >= 0 && newValue < getNumInputs())
+        {
+            inputChannel = static_cast<int>(newValue);
+            validSubProcFullID = getSubProcFullID(inputChannel);
         }
         else
         {
-            newThresh = threshold;
+            validSubProcFullID = 0;
         }
-        thresholdVal = newThresh;
+        // make sure available threshold channels take into account new input channel
+        static_cast<CrossingDetectorEditor*>(getEditor())->updateChannelThreshBox();
         break;
 
-    case pMinThresh:
-        minThresh = newValue;
-        currRandomThresh = nextThresh();
-        if (useRandomThresh)
-            thresholdVal = currRandomThresh;
+    case EVENT_CHAN:
+        eventChannel = static_cast<int>(newValue);
         break;
 
-    case pMaxThresh:
-        maxThresh = newValue;
-        currRandomThresh = nextThresh();
-        if (useRandomThresh)
-            thresholdVal = currRandomThresh;
-        break;
-
-    case pThreshold:
-        threshold = newValue;
-        break;
-
-    case pPosOn:
+    case POS_ON:
         posOn = static_cast<bool>(newValue);
         break;
 
-    case pNegOn:
+    case NEG_ON:
         negOn = static_cast<bool>(newValue);
         break;
 
-    case pInputChan:
-        if (getNumInputs() > newValue)
-            inputChan = static_cast<int>(newValue);
-        break;
-
-    case pEventChan:
-        eventChan = static_cast<int>(newValue);
-        break;
-
-    case pEventDur:
+    case EVENT_DUR:
         eventDuration = static_cast<int>(newValue);
-        if (CoreServices::getAcquisitionStatus())
-        {
-            float sampleRate = getDataChannel(inputChan)->getSampleRate();
-            eventDurationSamp = static_cast<int>(ceil(eventDuration * sampleRate / 1000.0f));
-        }
+        eventDurationSamp = static_cast<int>(ceil(eventDuration / 1000.0f 
+            * getDataChannel(inputChannel)->getSampleRate()));
         break;
 
-    case pTimeout:
+    case TIMEOUT:
         timeout = static_cast<int>(newValue);
-        if (CoreServices::getAcquisitionStatus())
-        {
-            float sampleRate = getDataChannel(inputChan)->getSampleRate();
-            timeoutSamp = static_cast<int>(floor(timeout * sampleRate / 1000.0f));
-        }
+        timeoutSamp = static_cast<int>(floor(timeout / 1000.0f 
+            * getDataChannel(inputChannel)->getSampleRate()));
         break;
 
-    case pPastSpan:
+    case PAST_SPAN:
         pastSpan = static_cast<int>(newValue);
         sampToReenable = pastSpan + futureSpan + 1;
 
-        pastBinary.clearQuick();
-        pastBinary.insertMultiple(0, 0, pastSpan + 1);
-        pastCounter = 0; // must reflect current contents of pastBinary
-
-        jumpSize.resize(pastSpan + futureSpan + 2);
+        inputHistory.reset();
+        inputHistory.resize(pastSpan + futureSpan + 2);
+        thresholdHistory.reset();
         thresholdHistory.resize(pastSpan + futureSpan + 2);
+
+        // counters must reflect current contents of inputHistory and thresholdHistory
+        pastCounter = 0;
+        futureCounter = 0;
         break;
 
-    case pPastStrict:
+    case PAST_STRICT:
         pastStrict = newValue;
         break;
 
-    case pFutureSpan:
+    case FUTURE_SPAN:
         futureSpan = static_cast<int>(newValue);
         sampToReenable = pastSpan + futureSpan + 1;
 
-        futureBinary.clearQuick();
-        futureBinary.insertMultiple(0, 0, futureSpan + 1);
-        futureCounter = 0; // must reflect current contents of futureBinary
-
-        jumpSize.resize(pastSpan + futureSpan + 2);
+        inputHistory.reset();
+        inputHistory.resize(pastSpan + futureSpan + 2);
+        thresholdHistory.reset();
         thresholdHistory.resize(pastSpan + futureSpan + 2);
+
+        // counters must reflect current contents of inputHistory and thresholdHistory
+        pastCounter = 0;
+        futureCounter = 0;
         break;
 
-    case pFutureStrict:
+    case FUTURE_STRICT:
         futureStrict = newValue;
         break;
 
-    case pUseJumpLimit:
+    case USE_JUMP_LIMIT:
         useJumpLimit = static_cast<bool>(newValue);
         break;
 
-    case pJumpLimit:
+    case JUMP_LIMIT:
         jumpLimit = newValue;
         break;
     }
@@ -352,7 +398,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 bool CrossingDetector::enable()
 {
     // input channel is fixed once acquisition starts, so convert timeout and eventDuration
-    float sampleRate = getDataChannel(inputChan)->getSampleRate();
+    float sampleRate = getDataChannel(inputChannel)->getSampleRate();
     eventDurationSamp = static_cast<int>(ceil(eventDuration * sampleRate / 1000.0f));
     timeoutSamp = static_cast<int>(floor(timeout * sampleRate / 1000.0f));
     return isEnabled;
@@ -367,29 +413,28 @@ bool CrossingDetector::disable()
     return true;
 }
 
-bool CrossingDetector::shouldTrigger(bool currPosOn, bool currNegOn)
-{
-    if (!currPosOn && !currNegOn)
-        return false;
+// ----- private methods ------
 
-    if (currPosOn && currNegOn)
-        return shouldTrigger(true, false) 
-        || shouldTrigger(false, true);
+bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal,
+    float preThresh, float postThresh)
+{
+    jassert(pastCounter >= 0 && futureCounter >= 0);
 
     //check jumpLimit
-    if (useJumpLimit && abs(jumpSize[pastSpan] - jumpSize[pastSpan + 1]) >= jumpLimit)
+    if (useJumpLimit && abs(postVal - preVal) >= jumpLimit)
     {
         return false;
     }
+
     //number of samples required before and after crossing threshold
     int pastSamplesNeeded = pastSpan ? static_cast<int>(ceil(pastSpan * pastStrict)) : 0;
     int futureSamplesNeeded = futureSpan ? static_cast<int>(ceil(futureSpan * futureStrict)) : 0;
     // if enough values cross threshold
-    if(currPosOn)
+    if (direction)
     {
         int pastZero = pastSpan - pastCounter;
-        if(pastZero >= pastSamplesNeeded && futureCounter >= futureSamplesNeeded &&
-            pastBinary[pastSpan] == 0 && futureBinary[0] == 1)
+        if (pastZero >= pastSamplesNeeded && futureCounter >= futureSamplesNeeded &&
+            preVal <= preThresh && postVal > postThresh)
         {
             return true;
         }
@@ -401,8 +446,8 @@ bool CrossingDetector::shouldTrigger(bool currPosOn, bool currNegOn)
     else
     {
         int futureZero = futureSpan - futureCounter;
-        if(pastCounter >= pastSamplesNeeded && futureZero >= futureSamplesNeeded &&
-            pastBinary[pastSpan] == 1 && futureBinary[0] == 0)
+        if (pastCounter >= pastSamplesNeeded && futureZero >= futureSamplesNeeded &&
+            preVal > preThresh && postVal <= postThresh)
         {
             return true;
         }
@@ -415,8 +460,8 @@ bool CrossingDetector::shouldTrigger(bool currPosOn, bool currNegOn)
 
 float CrossingDetector::nextThresh()
 {
-    float range = maxThresh - minThresh;
-    return minThresh + range * rng.nextFloat();
+    float range = maxRandomThresh - minRandomThresh;
+    return minRandomThresh + range * rng.nextFloat();
 }
 
 void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
@@ -444,7 +489,7 @@ void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
     mdArray.add(directionVal);
 
     // Create events
-    int currEventChan = eventChan;
+    int currEventChan = eventChannel;
     juce::uint8 ttlDataOn = 1 << currEventChan;
     int sampleNumOn = std::max(crossingOffset, 0);
     juce::int64 eventTsOn = bufferTs + sampleNumOn;
@@ -465,9 +510,37 @@ void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
     // but overwriting turnoffEvent unconditionally guarantees that this and all previously
     // turned-on events will be turned off by this "turning-off" if they're not already off.
     if (sampleNumOff <= bufferLength)
+    {
         // add event now
         addEvent(eventChannelPtr, eventOff, sampleNumOff);
+    }
     else
+    {
         // save for later
         turnoffEvent = eventOff;
+    }
+}
+
+juce::uint32 CrossingDetector::getSubProcFullID(int chanNum) const
+{
+    const DataChannel* chan = getDataChannel(chanNum);
+    jassert(chan != nullptr);
+    uint16 sourceNodeID = chan->getSourceNodeID();
+    uint16 subProcessorIdx = chan->getSubProcessorIdx();
+    return getProcessorFullId(sourceNodeID, subProcessorIdx);
+}
+
+bool CrossingDetector::isCompatibleWithInput(int chanNum) const
+{
+    if (chanNum == inputChannel || getDataChannel(chanNum) == nullptr)
+    {
+        return false;
+    }
+
+    return getSubProcFullID(chanNum) == validSubProcFullID;
+}
+
+String CrossingDetector::toChannelThreshString(int chanNum)
+{
+    return "<chan " + String(chanNum + 1) + ">";
 }
