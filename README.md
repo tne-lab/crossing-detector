@@ -2,7 +2,7 @@
 
 This plugin for the [Open Ephys GUI](https://github.com/open-ephys/plugin-GUI) fires a TTL event when a specified input data channel crosses a specified threshold level; the criteria for detection and the output are highly customizable. It does not modify the data channels. Each instance only processes one data channel, but multiple instances can be chained together or placed in parallel.
 
-<img src="cd2.0_front.png" width="250" /> <img src="cd2.0_settings.PNG" width="400" />
+<img src="cd2.0_front.png" width="250" /> <img src="cd2.1_settings.png" width="400" />
 
 ## Settings:
 
@@ -14,7 +14,9 @@ This plugin for the [Open Ephys GUI](https://github.com/open-ephys/plugin-GUI) f
 
 ### Additional settings (in visualizer window)
 
-* Threshold randomization (chooses a new threshold for each event, within the provided range)
+* Threshold randomization (chooses a new threshold for each event, uniformly at random within the provided range)
+
+* Use a continuous channel as the threshold (compared with the input channel sample-by-sample)
 
 * Cross-threshold jump size limit (does not fire an event if the difference across threshold is too large in magnitude; useful for filtering out wrapped phase jumps, for example)
 

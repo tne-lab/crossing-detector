@@ -339,14 +339,20 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 
     case EVENT_DUR:
         eventDuration = static_cast<int>(newValue);
-        eventDurationSamp = static_cast<int>(ceil(eventDuration / 1000.0f 
-            * getDataChannel(inputChannel)->getSampleRate()));
+        if (CoreServices::getAcquisitionStatus())
+        {
+            float sampleRate = getDataChannel(inputChannel)->getSampleRate();
+            eventDurationSamp = static_cast<int>(ceil(eventDuration / 1000.0f * sampleRate));
+        }
         break;
 
     case TIMEOUT:
         timeout = static_cast<int>(newValue);
-        timeoutSamp = static_cast<int>(floor(timeout / 1000.0f 
-            * getDataChannel(inputChannel)->getSampleRate()));
+        if (CoreServices::getAcquisitionStatus())
+        {
+            float sampleRate = getDataChannel(inputChannel)->getSampleRate();
+            timeoutSamp = static_cast<int>(floor(timeout / 1000.0f * sampleRate));
+        }
         break;
 
     case PAST_SPAN:
