@@ -22,7 +22,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "CrossingDetectorEditor.h"
 #include "CrossingDetector.h"
-#include <string>
+#include <string>  // stoi, stof
+#include <climits> // INT_MAX
+#include <cfloat>  // FLT_MAX
 
 CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
     : VisualizerEditor(parentNode, 205, useDefaultParameterEditors)
