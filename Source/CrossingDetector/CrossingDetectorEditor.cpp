@@ -856,25 +856,15 @@ bool CrossingDetectorEditor::updateIntLabel(Label* label, int min, int max, int 
         return false;
     }
 
-    if (parsedInt < min)
-    {
-        *out = min;
-    }
-    else if (parsedInt > max)
-    {
-        *out = max;
-    }
-    else
-    {
-        *out = parsedInt;
-    }
+    *out = jmax(min, jmin(max, parsedInt));
 
     label->setText(String(*out), dontSendNotification);
     return true;
 }
 
 // Like updateIntLabel, but for floats
-bool CrossingDetectorEditor::updateFloatLabel(Label* label, float min, float max, float defaultValue, float* out)
+bool CrossingDetectorEditor::updateFloatLabel(Label* label, float min, float max,
+    float defaultValue, float* out)
 {
     const String& in = label->getText();
     float parsedFloat;
@@ -888,18 +878,7 @@ bool CrossingDetectorEditor::updateFloatLabel(Label* label, float min, float max
         return false;
     }
 
-    if (parsedFloat < min)
-    {
-        *out = min;
-    }
-    else if (parsedFloat > max)
-    {
-        *out = max;
-    }
-    else
-    {
-        *out = parsedFloat;
-    }
+    *out = jmax(min, jmin(max, parsedFloat));
 
     label->setText(String(*out), dontSendNotification);
     return true;
