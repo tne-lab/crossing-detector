@@ -563,14 +563,14 @@ void CrossingDetectorEditor::updateSettings()
         inputBox->addItem(String(chan), chan);
         if (currInputId == chan)
         {
-            inputBox->setSelectedId(chan, sendNotificationAsync);
+            inputBox->setSelectedId(chan, sendNotificationSync);
         }
     }
 
     if (inputBox->getSelectedId() == 0)
     {
         // set id to -1 instead of 0 if empty to force a notification, given that it's been cleared
-        inputBox->setSelectedId((numInputs == 0) ? -1 : 1, sendNotificationAsync);
+        inputBox->setSelectedId((numInputs == 0) ? -1 : 1, sendNotificationSync);
     }
 }
 
