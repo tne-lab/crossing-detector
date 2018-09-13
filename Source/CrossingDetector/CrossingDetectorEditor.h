@@ -36,7 +36,7 @@ Editor (in signal chain) contains:
 - Event timeout control
 
 Canvas/visualizer contains:
-- Threshold type selection - constant, random, or channel (with parameters)
+- Threshold type selection - constant, adaptive, random, or channel (with parameters)
 - Jump limiting toggle and max jump box
 - Voting settings (pre/post event span and strictness)
 - Event duration control
@@ -51,6 +51,29 @@ class RadioButtonLookAndFeel : public LookAndFeel_V2
     void drawTickBox(Graphics& g, Component& component, float x, float y, float w, float h,
         const bool ticked, const bool isEnabled,
         const bool isMouseOverButton, const bool isButtonDown) override;
+};
+
+/* Renders a rounded rectangular component behind and encompassing each group of
+ * components added, with matching widths. Components of each group are not added
+ * as children to the groupset or backgrounds; they are just used to position the backgrounds.
+ * Each component passed in must already have a parent.
+ */
+class VerticalGroupSet : public Component
+{
+public:
+    VerticalGroupSet(Colour backgroundColor = Colours::silver);
+    VerticalGroupSet(const String& componentName, Colour backgroundColor = Colours::silver);
+    ~VerticalGroupSet();
+
+    void addGroup(std::initializer_list<Component*> components);
+
+private:
+    Colour bgColor;
+    int leftBound;
+    int rightBound;
+    OwnedArray<DrawableRectangle> groups;
+    static const int PADDING = 5;
+    static const int CORNER_SIZE = 8;
 };
 
 class CrossingDetectorCanvas;
@@ -84,6 +107,36 @@ public:
     void loadCustomParameters(XmlElement* xml) override;
 
 private:
+    // Scope to be able to use "pi" in adaptive target range specification
+    class PiScope : public Expression::Scope
+    {
+        // copied from DSP library
+        const double doublePi = 3.1415926535897932384626433832795028841971;
+    public:
+        Expression getSymbolValue(const String& symbol) const override
+        {
+            if (symbol.equalsIgnoreCase("pi"))
+            {
+                return Expression(doublePi);
+            }
+            // to avoid exceptions, return a NaN instead to indicate a problem.
+            return Expression(NAN);
+        }
+    };
+
+    /* Utility for parsing a string as an expression with PiScope
+     * If unsuccessful, returns a nan.
+     * Else, if not null, simple will contain whether the passed string was a simple constant.
+     */
+    static float evalWithPiScope(const String& text, bool* simple = nullptr);
+
+    /* Update a Component that takes an Expression and sets the corresponding parameter.
+     * Returns the new float value. If the expression was not evaluated successfully,
+     * std::isfinite called on the return value will return false.
+     * @param paramToChange should be a member of the CrossingDetector::Parameter enum.
+     */
+    template<typename T>
+    float updateExpressionComponent(T* component, String& lastText, int paramToChange);
 
     // Basic UI element creation methods. Always register "this" (the editor) as the listener,
     // but may specify a different Component in which to actually display the element.
@@ -127,11 +180,44 @@ private:
 
     ScopedPointer<Label> optionsPanelTitle;
     
-    ScopedPointer<Label> thresholdTitle;
+    /****** threshold section ******/
 
+    ScopedPointer<Label> thresholdTitle;
     const static int threshRadioId = 1;
+    ScopedPointer<VerticalGroupSet> thresholdGroupSet;
 
     ScopedPointer<ToggleButton> constantThreshButton;
+
+    // adaptive threshold
+    // row 1
+    ScopedPointer<ToggleButton> adaptiveThreshButton;
+    ScopedPointer<ComboBox> indicatorChanBox;
+    // row 2
+    ScopedPointer<Label> targetLabel;
+    ScopedPointer<Label> targetEditable;
+    String lastTargetEditableString;
+    ScopedPointer<ToggleButton> indicatorRangeButton;
+    ScopedPointer<ComboBox> indicatorRangeMinBox;
+    String lastIndicatorRangeMinString;
+    ScopedPointer<Label> indicatorRangeTo;
+    ScopedPointer<ComboBox> indicatorRangeMaxBox;
+    String lastIndicatorRangeMaxString;
+    // row 3
+    ScopedPointer<Label> learningRateLabel;
+    ScopedPointer<Label> learningRateEditable;
+    ScopedPointer<Label> minLearningRateLabel;
+    ScopedPointer<Label> minLearningRateEditable;
+    ScopedPointer<Label> decayRateLabel;
+    ScopedPointer<Label> decayRateEditable;
+    ScopedPointer<UtilityButton> restartButton;
+    ScopedPointer<UtilityButton> pauseButton;
+    // row 4
+    ScopedPointer<ToggleButton> threshRangeButton;
+    ScopedPointer<ComboBox> threshRangeMinBox;
+    String lastThreshRangeMinString;
+    ScopedPointer<Label> threshRangeTo;
+    ScopedPointer<ComboBox> threshRangeMaxBox;
+    String lastThreshRangeMaxString;
 
     // threshold randomization
     ScopedPointer<ToggleButton> randomizeButton;
@@ -142,9 +228,12 @@ private:
 
     // threshold from channel
     ScopedPointer<ToggleButton> channelThreshButton;
-    ScopedPointer<ComboBox> channelThreshBox; 
+    ScopedPointer<ComboBox> channelThreshBox;
+
+    /******* criteria section *******/
 
     ScopedPointer<Label> criteriaTitle;
+    ScopedPointer<VerticalGroupSet> criteriaGroupSet;
 
     // jump limiting
     ScopedPointer<ToggleButton> limitButton;
@@ -168,12 +257,15 @@ private:
 
     ScopedPointer<Label> votingFooter;
 
+    /******** output section *******/
+
     ScopedPointer<Label> outputTitle;
+    ScopedPointer<VerticalGroupSet> outputGroupSet;
 
     // event duration
-    ScopedPointer<Label> durLabel;
+    ScopedPointer<Label> durationLabel;
     ScopedPointer<Label> durationEditable;
-    ScopedPointer<Label> durUnitLabel;
+    ScopedPointer<Label> durationUnit;
 };
 
 // Visualizer window containing additional settings
