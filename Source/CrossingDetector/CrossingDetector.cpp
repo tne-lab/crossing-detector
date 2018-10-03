@@ -410,8 +410,10 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         // make sure available threshold channels take into account new input channel
         static_cast<CrossingDetectorEditor*>(getEditor())->updateChannelThreshBox();
 
-        // update signal chain, since the event channel metadata has to get updated
-        CoreServices::updateSignalChain(getEditor());
+        // update signal chain, since the event channel metadata has to get updated.
+        // pass nullptr instead of a pointer to the editor so that it just updates
+        // settings and doesn't try to update the visible editors.
+        CoreServices::updateSignalChain(nullptr);
         break;
 
     case EVENT_CHAN:
