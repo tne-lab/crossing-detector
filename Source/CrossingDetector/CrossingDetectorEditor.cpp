@@ -1132,12 +1132,12 @@ void CrossingDetectorEditor::updateChannelThreshBox()
         if (channelThreshBoxEmpty && channelThreshButton->getToggleState())
         {
             // default to constant threshold
-            constantThreshButton->setToggleState(true, sendNotificationAsync);
+            constantThreshButton->setToggleState(true, sendNotificationSync);
         }
         else if (!channelThreshBoxEmpty)
         {
             // default to first entry
-            channelThreshBox->setSelectedItemIndex(0, sendNotificationAsync);
+            channelThreshBox->setSelectedItemIndex(0, sendNotificationSync);
         }
     }
 
