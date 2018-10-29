@@ -1100,6 +1100,9 @@ void CrossingDetectorEditor::updateSettings()
             indicatorChanBox->setSelectedId(-1, sendNotificationSync);
         }
     }
+
+    // update channel threshold combo box
+    updateChannelThreshBox();
 }
 
 void CrossingDetectorEditor::updateChannelThreshBox()
