@@ -244,6 +244,8 @@ private:
     CircularArray<float> inputHistory;
     CircularArray<float> thresholdHistory;
 
+    Array<float> currThresholds;
+
     EventChannel* eventChannelPtr;
     MetaDataDescriptorArray eventMetaDataDescriptors;
     TTLEventPtr turnoffEvent; // holds a turnoff event that must be added in a later buffer

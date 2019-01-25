@@ -139,36 +139,34 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
     }
 
     int nSamples = getNumSamples(inputChannel);
-    const float* rp = continuousBuffer.getReadPointer(inputChannel);
+    const float* const rp = continuousBuffer.getReadPointer(inputChannel);
     juce::int64 startTs = getTimestamp(inputChannel);
-    juce::int64 endTs = startTs + nSamples; // 1 past end
 
     // turn off event from previous buffer if necessary
-    if (turnoffEvent != nullptr && turnoffEvent->getTimestamp() < endTs)
+    int turnoffOffset = turnoffEvent ? jmax(0, int(turnoffEvent->getTimestamp() - startTs)) : -1;
+    if (turnoffOffset >= 0 && turnoffOffset < nSamples)
     {
-        int turnoffOffset = static_cast<int>(turnoffEvent->getTimestamp() - startTs);
-        if (turnoffOffset < 0)
-        {
-            // shouldn't happen; should be added during a previous buffer
-            jassertfalse;
-            turnoffEvent = nullptr;
-        }
-        else
-        {
-            addEvent(eventChannelPtr, turnoffEvent, turnoffOffset);
-            turnoffEvent = nullptr;
-        }
+        addEvent(eventChannelPtr, turnoffEvent, turnoffOffset);
+        turnoffEvent = nullptr;
     }
 
+    const ThresholdType currThreshType = thresholdType;
+
     // adapt threshold if necessary
-    if (thresholdType == ADAPTIVE && indicatorChan > -1)
+    if (currThreshType == ADAPTIVE && indicatorChan > -1)
     {
         checkForEvents();
     }
 
     // store threshold for each sample of current buffer
-    Array<float> currThresholds;
-    currThresholds.resize(nSamples);
+    if (currThresholds.size() < nSamples)
+    {
+        currThresholds.resize(nSamples);
+    }
+    float* const pThresh = currThresholds.getRawDataPointer();
+    const float* const rpThreshChan = currThreshType == CHANNEL
+        ? continuousBuffer.getReadPointer(thresholdChannel)
+        : nullptr;
 
     // define lambdas to access history values more easily
     auto inputAt = [=](int index)
@@ -178,7 +176,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
 
     auto thresholdAt = [&, this](int index)
     {
-        return index < 0 ? thresholdHistory[index] : currThresholds[index];
+        return index < 0 ? thresholdHistory[index] : pThresh[index];
     };
 
     // loop over current buffer and add events for newly detected crossings
@@ -189,19 +187,19 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         bool currNegOn = negOn;
 
         // get and save threshold for this sample
-        switch (thresholdType)
+        switch (currThreshType)
         {
         case CONSTANT:
         case ADAPTIVE: // adaptive threshold process updates constantThresh
-            currThresholds.set(i, constantThresh);
+            pThresh[i] = constantThresh;
             break;
 
         case RANDOM:
-            currThresholds.set(i, currRandomThresh);
+            pThresh[i] = currRandomThresh;
             break;
 
         case CHANNEL:
-            currThresholds.set(i, continuousBuffer.getSample(thresholdChannel, i));
+            pThresh[i] = rpThreshChan[i];
             break;
         }
 
@@ -260,7 +258,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
             sampToReenable = i + 1 + timeoutSamp;
 
             // if using random thresholds, set a new threshold
-            if (thresholdType == RANDOM)
+            if (currThreshType == RANDOM)
             {
                 currRandomThresh = nextRandomThresh();
                 thresholdVal = currRandomThresh;
@@ -270,8 +268,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
 
     // update inputHistory and thresholdHistory
     inputHistory.enqueueArray(rp, nSamples);
-    float* rpThresh = currThresholds.getRawDataPointer();
-    thresholdHistory.enqueueArray(rpThresh, nSamples);
+    thresholdHistory.enqueueArray(pThresh, nSamples);
 
     // shift sampToReenable so it is relative to the next buffer
     sampToReenable = jmax(0, sampToReenable - nSamples);
