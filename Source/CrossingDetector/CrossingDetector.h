@@ -24,10 +24,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef CROSSING_DETECTOR_H_INCLUDED
 #define CROSSING_DETECTOR_H_INCLUDED
 
-#ifdef _WIN32
-#include <Windows.h>
-#endif
-
 #include <ProcessorHeaders.h>
 #include "CircularArray.h"
 
@@ -100,6 +96,8 @@ private:
         FUTURE_STRICT,
         USE_JUMP_LIMIT,
         JUMP_LIMIT,
+        USE_BUF_END_MASK,
+        BUF_END_MASK
     };
 
     // ---------------------------- PRIVATE FUNCTIONS ----------------------
@@ -178,6 +176,12 @@ private:
     void triggerEvent(juce::int64 bufferTs, int crossingOffset, int bufferLength,
         float threshold, float crossingLevel);
 
+
+    /********* misc **********/
+    
+    // Converts parameters specified in ms to samples, and updates the corresponding member variables.
+    void updateSampleRateDependentValues();
+
     // ------ PARAMETERS ------------
 
     ThresholdType thresholdType;
@@ -214,6 +218,10 @@ private:
     int timeout; // milliseconds after an event onset when no more events are allowed.
     int timeoutSamp;
 
+    bool useBufferEndMask;
+    int bufferEndMaskMs;
+    int bufferEndMaskSamp;
+
     /* Number of *additional* past and future samples to look at at each timepoint (attention span)
      * If futureSpan samples are not available to look ahead from a timepoint, the test is delayed until enough samples are available.
      * If it succeeds, the event occurs on the first sample in the buffer when the test occurs, but the "crossing point"
@@ -237,8 +245,8 @@ private:
     int sampToReenable;
 
      // counters for delay keeping track of voting samples
-    int pastCounter;
-    int futureCounter;
+    int pastSamplesAbove;
+    int futureSamplesAbove;
 
     // arrays to implement past/future voting
     CircularArray<float> inputHistory;

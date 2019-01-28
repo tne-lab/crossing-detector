@@ -562,6 +562,40 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
         votingFooter
     });
 
+
+    /* --------------- Buffer end mask ----------------- */
+    xPos = LEFT_EDGE + TAB_WIDTH;
+    yPos += 40;
+
+    static const String bufferMaskTT =
+        "Each time a new buffer of samples is received, the samples closer to the start have "
+        "been waiting to be processed for longer than those at the end, but an event triggered "
+        "from any of them will be handled by the rest of the chain at the same time. This adds "
+        "some variance to the latency between data and reaction in a closed-loop scenario. Enable "
+        "this option to just ignore any crossings before a threshold measured from the end of the buffer.";
+
+    bufferMaskButton = new ToggleButton("Ignore crossings ocurring >");
+    bufferMaskButton->setBounds(bounds = { xPos, yPos, 200, C_TEXT_HT });
+    bufferMaskButton->setToggleState(processor->useBufferEndMask, dontSendNotification);
+    bufferMaskButton->addListener(this);
+    bufferMaskButton->setTooltip(bufferMaskTT);
+    optionsPanel->addAndMakeVisible(bufferMaskButton);
+    opBounds = opBounds.getUnion(bounds);
+
+    bufferMaskEditable = createEditable("BufMaskE", String(processor->bufferEndMaskMs),
+        bufferMaskTT, bounds = { xPos += 200, yPos, 40, C_TEXT_HT });
+    bufferMaskEditable->setEnabled(processor->useBufferEndMask);
+    optionsPanel->addAndMakeVisible(bufferMaskEditable);
+    opBounds = opBounds.getUnion(bounds);
+
+    bufferMaskLabel = new Label("BufMaskL", "ms before the end of a buffer.");
+    bufferMaskLabel->setBounds(bounds = { xPos += 45, yPos, 225, C_TEXT_HT });
+    bufferMaskLabel->setTooltip(bufferMaskTT);
+    optionsPanel->addAndMakeVisible(bufferMaskLabel);
+    opBounds = opBounds.getUnion(bounds);
+
+    criteriaGroupSet->addGroup({ bufferMaskButton, bufferMaskEditable, bufferMaskLabel });
+
     /* ~~~~~~~~~~~~~~~ Output section ~~~~~~~~~~~~ */
 
     outputGroupSet = new VerticalGroupSet("Output controls");
@@ -721,22 +755,11 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
 {
     CrossingDetector* processor = static_cast<CrossingDetector*>(getProcessor());
 
-    if (labelThatHasChanged == durationEditable)
+    // Editor editable labels
+    if (labelThatHasChanged == timeoutEditable)
     {
         int newVal;
-        bool success = updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->eventDuration, &newVal);
-
-        if (success)
-        {
-            processor->setParameter(CrossingDetector::EVENT_DUR, static_cast<float>(newVal));
-        }
-    }
-    else if (labelThatHasChanged == timeoutEditable)
-    {
-        int newVal;
-        bool success = updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->timeout, &newVal);
-
-        if (success)
+        if (updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->timeout, &newVal))
         {
             processor->setParameter(CrossingDetector::TIMEOUT, static_cast<float>(newVal));
         }
@@ -745,10 +768,8 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         (processor->thresholdType == CrossingDetector::CONSTANT || processor->thresholdType == CrossingDetector::ADAPTIVE))
     {
         float newVal;
-        bool success = updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX,
-            processor->constantThresh, &newVal);
-
-        if (success)
+        if (updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX,
+            processor->constantThresh, &newVal))
         {
             if (processor->thresholdType == CrossingDetector::ADAPTIVE && processor->useAdaptThreshRange)
             {
@@ -763,12 +784,12 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
             processor->setParameter(CrossingDetector::CONST_THRESH, newVal);
         }
     }
+
+    // Sample voting editable labels
     else if (labelThatHasChanged == pastPctEditable)
     {
         float newVal;
-        bool success = updateFloatLabel(labelThatHasChanged, 0, 100, 100 * processor->pastStrict, &newVal);
-
-        if (success)
+        if (updateFloatLabel(labelThatHasChanged, 0, 100, 100 * processor->pastStrict, &newVal))
         {
             processor->setParameter(CrossingDetector::PAST_STRICT, newVal / 100);
         }
@@ -776,9 +797,7 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == pastSpanEditable)
     {
         int newVal;
-        bool success = updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->pastSpan, &newVal);
-
-        if (success)
+        if (updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->pastSpan, &newVal))
         {
             processor->setParameter(CrossingDetector::PAST_SPAN, static_cast<float>(newVal));
         }
@@ -786,9 +805,7 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == futurePctEditable)
     {
         float newVal;
-        bool success = updateFloatLabel(labelThatHasChanged, 0, 100, 100 * processor->futureStrict, &newVal);
-
-        if (success)
+        if (updateFloatLabel(labelThatHasChanged, 0, 100, 100 * processor->futureStrict, &newVal))
         {
             processor->setParameter(CrossingDetector::FUTURE_STRICT, newVal / 100);
         }
@@ -796,20 +813,18 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == futureSpanEditable)
     {
         int newVal;
-        bool success = updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->futureSpan, &newVal);
-
-        if (success)
+        if (updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->futureSpan, &newVal))
         {
             processor->setParameter(CrossingDetector::FUTURE_SPAN, static_cast<float>(newVal));
         }
     }
+
+    // Random threshold editable labels
     else if (labelThatHasChanged == minThreshEditable)
     {
         float newVal;
-        bool success = updateFloatLabel(labelThatHasChanged,
-            -FLT_MAX, FLT_MAX, processor->randomThreshRange[0], &newVal);
-
-        if (success)
+        if (updateFloatLabel(labelThatHasChanged,
+            -FLT_MAX, FLT_MAX, processor->randomThreshRange[0], &newVal))
         {
             processor->setParameter(CrossingDetector::MIN_RAND_THRESH, newVal);
             if (newVal > processor->randomThreshRange[1])
@@ -822,10 +837,8 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == maxThreshEditable)
     {
         float newVal;
-        bool success = updateFloatLabel(labelThatHasChanged,
-            -FLT_MAX, FLT_MAX, processor->randomThreshRange[1], &newVal);
-
-        if (success)
+        if (updateFloatLabel(labelThatHasChanged,
+            -FLT_MAX, FLT_MAX, processor->randomThreshRange[1], &newVal))
         {
             processor->setParameter(CrossingDetector::MAX_RAND_THRESH, newVal);
             if (newVal < processor->randomThreshRange[0])
@@ -835,16 +848,36 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
             }
         }
     }
+
+    // Event criteria editable labels
     else if (labelThatHasChanged == limitEditable)
     {
         float newVal;
-        bool success = updateFloatLabel(labelThatHasChanged, 0, FLT_MAX, processor->jumpLimit, &newVal);
-
-        if (success)
+        if (updateFloatLabel(labelThatHasChanged, 0, FLT_MAX, processor->jumpLimit, &newVal))
         {
             processor->setParameter(CrossingDetector::JUMP_LIMIT, newVal);
         }
     }
+    else if (labelThatHasChanged == bufferMaskEditable)
+    {
+        float newVal;
+        if (updateFloatLabel(labelThatHasChanged, 0, FLT_MAX, processor->bufferEndMaskMs, &newVal))
+        {
+            processor->setParameter(CrossingDetector::BUF_END_MASK, newVal);
+        }
+    }
+
+    // Output options editable labels
+    else if (labelThatHasChanged == durationEditable)
+    {
+        int newVal;
+        if (updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->eventDuration, &newVal))
+        {
+            processor->setParameter(CrossingDetector::EVENT_DUR, static_cast<float>(newVal));
+        }
+    }
+
+    // Adaptive threshold editable labels
     else if (labelThatHasChanged == targetEditable)
     {
         float newVal = updateExpressionComponent(labelThatHasChanged, lastTargetEditableString,
@@ -865,10 +898,8 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == learningRateEditable)
     {
         float newVal;
-        bool success = updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX,
-            processor->startLearningRate, &newVal);
-
-        if (success)
+        if (updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX,
+            processor->startLearningRate, &newVal))
         {
             processor->setParameter(CrossingDetector::START_LEARNING_RATE, newVal);
         }
@@ -876,10 +907,8 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == minLearningRateEditable)
     {
         float newVal;
-        bool success = updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX,
-            processor->minLearningRate, &newVal);
-
-        if (success)
+        if (updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX,
+            processor->minLearningRate, &newVal))
         {
             processor->setParameter(CrossingDetector::MIN_LEARNING_RATE, newVal);
         }
@@ -887,10 +916,8 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
     else if (labelThatHasChanged == decayRateEditable)
     {
         float newVal;
-        bool success = updateFloatLabel(labelThatHasChanged, 0, FLT_MAX,
-            processor->decayRate, &newVal);
-
-        if (success)
+        if (updateFloatLabel(labelThatHasChanged, 0, FLT_MAX,
+            processor->decayRate, &newVal))
         {
             processor->setParameter(CrossingDetector::DECAY_RATE, newVal);
         }
@@ -900,6 +927,8 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
 void CrossingDetectorEditor::buttonEvent(Button* button)
 {
     auto processor = static_cast<CrossingDetector*>(getProcessor());
+
+    // Buttons on main editor
     if (button == risingButton)
     {
         processor->setParameter(CrossingDetector::POS_ON, static_cast<float>(button->getToggleState()));
@@ -908,12 +937,8 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
     {
         processor->setParameter(CrossingDetector::NEG_ON, static_cast<float>(button->getToggleState()));
     }
-    else if (button == limitButton)
-    {
-        bool limitOn = button->getToggleState();
-        limitEditable->setEnabled(limitOn);
-        processor->setParameter(CrossingDetector::USE_JUMP_LIMIT, static_cast<float>(limitOn));
-    }
+
+    // Buttons for adaptive threshold
     else if (button == indicatorRangeButton)
     {
         bool wrapOn = button->getToggleState();
@@ -963,7 +988,21 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
         processor->setParameter(CrossingDetector::USE_THRESH_RANGE, static_cast<float>(wrapOn));
     }
 
-    // threshold radio buttons
+    // Buttons for event criteria
+    else if (button == limitButton)
+    {
+        bool limitOn = button->getToggleState();
+        limitEditable->setEnabled(limitOn);
+        processor->setParameter(CrossingDetector::USE_JUMP_LIMIT, static_cast<float>(limitOn));
+    }
+    else if (button == bufferMaskButton)
+    {
+        bool bufMaskOn = button->getToggleState();
+        bufferMaskEditable->setEnabled(bufMaskOn);
+        processor->setParameter(CrossingDetector::USE_BUF_END_MASK, static_cast<float>(bufMaskOn));
+    }
+
+    // Threshold radio buttons
     else if (button == constantThreshButton)
     {
         bool on = button->getToggleState();
@@ -1215,6 +1254,10 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
     paramValues->setAttribute("bJumpLimit", limitButton->getToggleState());
     paramValues->setAttribute("jumpLimit", limitEditable->getText());
 
+    // buffer end mask
+    paramValues->setAttribute("bBufferEndMask", bufferMaskButton->getToggleState());
+    paramValues->setAttribute("bufferEndMask", bufferMaskEditable->getText());
+
     // timing
     paramValues->setAttribute("durationMS", durationEditable->getText());
     paramValues->setAttribute("timeoutMS", timeoutEditable->getText());
@@ -1302,6 +1345,10 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         // jump limit
         limitButton->setToggleState(xmlNode->getBoolAttribute("bJumpLimit", limitButton->getToggleState()), sendNotificationSync);
         limitEditable->setText(xmlNode->getStringAttribute("jumpLimit", limitEditable->getText()), sendNotificationSync);
+
+        // buffer end mask
+        bufferMaskButton->setToggleState(xmlNode->getBoolAttribute("bBufferEndMask", bufferMaskButton->getToggleState()), sendNotificationSync);
+        bufferMaskEditable->setText(xmlNode->getStringAttribute("bufferEndMask", bufferMaskEditable->getText()), sendNotificationSync);
 
         // timing
         durationEditable->setText(xmlNode->getStringAttribute("durationMS", durationEditable->getText()), sendNotificationSync);

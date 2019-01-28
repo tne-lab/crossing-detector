@@ -29,7 +29,7 @@ Extends (by ownership) the JUCE array type to use circular (modular) indices.
 @see Array
 */
 
-#include "../../../JuceLibraryCode/JuceHeader.h"
+#include <BasicJuceHeader.h>
 
 template <typename ElementType>
 class CircularArray

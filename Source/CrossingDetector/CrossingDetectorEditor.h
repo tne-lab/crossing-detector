@@ -257,6 +257,11 @@ private:
 
     ScopedPointer<Label> votingFooter;
 
+    // buffer end mask
+    ScopedPointer<ToggleButton> bufferMaskButton;
+    ScopedPointer<Label> bufferMaskEditable;
+    ScopedPointer<Label> bufferMaskLabel;
+
     /******** output section *******/
 
     ScopedPointer<Label> outputTitle;
