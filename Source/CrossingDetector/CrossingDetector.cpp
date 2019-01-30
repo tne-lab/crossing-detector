@@ -209,7 +209,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
 
         int indCross = i - futureSpan;
 
-        // update pastCounter and futureCounter
+        // update pastSamplesA`bove and futureSamplesAbove
         if (pastSpan > 0)
         {
             int indLeaving = indCross - 2 - pastSpan;
@@ -680,7 +680,7 @@ String CrossingDetector::toChannelThreshString(int chanNum)
 bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal,
     float preThresh, float postThresh)
 {
-    jassert(pastCounter >= 0 && futureCounter >= 0);
+    jassert(pastSamplesAbove >= 0 && futureSamplesAbove >= 0);
 
     // check jumpLimit
     if (useJumpLimit && abs(postVal - preVal) >= jumpLimit)
