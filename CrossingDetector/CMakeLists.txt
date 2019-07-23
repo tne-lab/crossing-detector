@@ -47,6 +47,17 @@ target_include_directories(${PLUGIN_NAME} PUBLIC
 	${GUI_BASE_DIR}/Plugins/Headers)
 
 set(GUI_BIN_DIR ${GUI_BASE_DIR}/Build/$<CONFIG>)
+foreach(config ${CMAKE_CONFIGURATION_TYPES})
+	if (NOT EXISTS ${GUI_BASE_DIR}/Build/${config})
+		if (EXISTS ${GUI_BASE_DIR}/Build/Release)
+			# default to release
+			message(WARNING "${config} ${PLUGIN_NAME} build will link to Release GUI build")
+			set(GUI_BIN_DIR $<IF:$<CONFIG:${config}>,${GUI_BASE_DIR}/Build/Release,${GUI_BIN_DIR}>)
+		else()
+			message(WARNING "${config} ${PLUGIN_NAME} build will not be available")
+		endif()
+	endif()
+endforeach()
 
 if (NOT CMAKE_LIBRARY_ARCHITECTURE)
 	if (CMAKE_SIZEOF_VOID_P EQUAL 8)
