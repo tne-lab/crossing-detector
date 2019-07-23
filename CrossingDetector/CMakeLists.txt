@@ -44,7 +44,9 @@ target_compile_features(${PLUGIN_NAME} PUBLIC cxx_auto_type cxx_generalized_init
 target_include_directories(${PLUGIN_NAME} PUBLIC
 	${GUI_BASE_DIR}/JuceLibraryCode
 	${GUI_BASE_DIR}/JuceLibraryCode/modules
-	${GUI_BASE_DIR}/Source/Plugins/Headers)
+	${GUI_BASE_DIR}/Plugins/Headers)
+
+set(GUI_BIN_DIR ${GUI_BASE_DIR}/Build/$<CONFIG>)
 
 if (NOT CMAKE_LIBRARY_ARCHITECTURE)
 	if (CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -56,12 +58,6 @@ endif()
 
 #Libraries and compiler options
 if(MSVC)
-	set(GUI_BIN_DIR ${GUI_BASE_DIR}/Builds/VisualStudio2013)
-	if (CMAKE_LIBRARY_ARCHITECTURE STREQUAL "x64")
-		set(GUI_BIN_DIR ${GUI_BIN_DIR}/x64)
-	endif()
-	set(GUI_BIN_DIR ${GUI_BIN_DIR}/$<IF:$<CONFIG:Debug>,Debug,Release>/bin)
-
 	target_link_libraries(${PLUGIN_NAME} ${GUI_BIN_DIR}/open-ephys.lib)
 	target_compile_options(${PLUGIN_NAME} PRIVATE /sdl-)
 
@@ -74,8 +70,6 @@ if(MSVC)
 	list(APPEND CMAKE_PREFIX_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../libs)
 
 elseif(LINUX)
-	set(GUI_BIN_DIR ${GUI_BASE_DIR}/Builds/Linux/build)
-
 	target_link_libraries(${PLUGIN_NAME} GL X11 Xext Xinerama asound dl freetype pthread rt)
 	set_property(TARGET ${PLUGIN_NAME} APPEND_STRING PROPERTY LINK_FLAGS
 		"-fvisibility=hidden -fPIC -rdynamic -Wl,-rpath,'$ORIGIN/../shared'")
@@ -90,7 +84,7 @@ elseif(APPLE)
 	"-undefined dynamic_lookup -rpath @loader_path/../../../../shared")
 
 	install(TARGETS ${PLUGIN_NAME} DESTINATION $ENV{HOME}/Library/Application\ Support/open-ephys/PlugIns)
-	set(CMAKE_PREFIX_PATH /opt/local)
+	list(APPEND CMAKE_PREFIX_PATH /opt/local)
 endif()
 
 #create filters for vs and xcode
