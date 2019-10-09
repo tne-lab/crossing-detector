@@ -57,7 +57,7 @@ CrossingDetector::CrossingDetector()
     , futureSpan            (0)
     , useJumpLimit          (false)
     , jumpLimit             (5.0f)
-    , jumpLimitSleep        (1)
+    , jumpLimitSleep        (0)
     , jumpLimitElapsed      (jumpLimitSleep)
     , sampToReenable        (pastSpan + futureSpan + 1)
     , pastSamplesAbove      (0)
@@ -489,7 +489,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         break;
 
     case JUMP_LIMIT_SLEEP:
-        jumpLimitSleep = newValue;
+		jumpLimitSleep = newValue * getDataChannel(0)->getSampleRate();
         break;
 
     case USE_BUF_END_MASK:

@@ -872,10 +872,10 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
     }
     else if (labelThatHasChanged == limitSleepEditable)
     {
-        int newVal;
-        if (updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->jumpLimitSleep, &newVal))
+		float newVal;
+		if (updateFloatLabel(labelThatHasChanged, 0, FLT_MAX, processor->jumpLimitSleep, &newVal))
         {
-            processor->setParameter(CrossingDetector::JUMP_LIMIT_SLEEP, static_cast<float>(newVal));
+            processor->setParameter(CrossingDetector::JUMP_LIMIT_SLEEP, newVal);
         }
     }
     else if (labelThatHasChanged == bufferMaskEditable)

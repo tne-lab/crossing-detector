@@ -238,7 +238,7 @@ private:
     // maximum absolute difference between x[k] and x[k-1] to trigger an event on x[k]
     bool useJumpLimit;
     float jumpLimit;
-    int jumpLimitSleep;
+    float jumpLimitSleep;
     int jumpLimitElapsed;
 
     // ------ INTERNALS -----------
