@@ -57,6 +57,8 @@ CrossingDetector::CrossingDetector()
     , futureSpan            (0)
     , useJumpLimit          (false)
     , jumpLimit             (5.0f)
+    , jumpLimitSleep        (1)
+    , jumpLimitElapsed      (jumpLimitSleep)
     , sampToReenable        (pastSpan + futureSpan + 1)
     , pastSamplesAbove      (0)
     , futureSamplesAbove    (0)
@@ -251,6 +253,8 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         float preThresh = thresholdAt(indCross - 1);
         float postVal = inputAt(indCross);
         float postThresh = thresholdAt(indCross);
+
+
 
         // check whether to trigger an event
         if (currPosOn && shouldTrigger(true, preVal, postVal, preThresh, postThresh) ||
@@ -484,6 +488,10 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         jumpLimit = newValue;
         break;
 
+    case JUMP_LIMIT_SLEEP:
+        jumpLimitSleep = newValue;
+        break;
+
     case USE_BUF_END_MASK:
         useBufferEndMask = static_cast<bool>(newValue);
         break;
@@ -497,6 +505,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 
 bool CrossingDetector::enable()
 {
+    jumpLimitElapsed = jumpLimitSleep;
     updateSampleRateDependentValues();
     restartAdaptiveThreshold();
     return isEnabled;
@@ -681,10 +690,16 @@ bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal
     float preThresh, float postThresh)
 {
     jassert(pastSamplesAbove >= 0 && futureSamplesAbove >= 0);
-
     // check jumpLimit
     if (useJumpLimit && abs(postVal - preVal) >= jumpLimit)
     {
+        jumpLimitElapsed = 0;
+        return false;
+    }
+
+    if (jumpLimitElapsed <= jumpLimitSleep)
+    {
+        jumpLimitElapsed++;
         return false;
     }
 
