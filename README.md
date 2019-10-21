@@ -59,3 +59,6 @@ On Windows (VS2013):
 * In Visual Studio, open the `Plugins.sln` solution and add the new project (`File->Add->Existing Project...` and select `Builds/VisualStudio2013/Plugins/CrossingDetector/CrossingDetector.vcxproj`). Then build the solution.
 
 On Linux, build the plugin by calling `make -f Makefile.plugins` from `Builds/Linux` as usual. You can specify the target to build just this plugin (call `make -f Makefile.plugins CrossingDetector`).
+
+
+Currently maintained by Mark Schatza (markschatza@gmail.com)
