@@ -239,6 +239,8 @@ private:
     ScopedPointer<ToggleButton> limitButton;
     ScopedPointer<Label> limitLabel;
     ScopedPointer<Label> limitEditable;
+    ScopedPointer<Label> limitSleepLabel;
+    ScopedPointer<Label> limitSleepEditable;
 
     // sample voting
     ScopedPointer<Label> votingHeader;

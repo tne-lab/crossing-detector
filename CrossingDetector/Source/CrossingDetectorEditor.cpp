@@ -478,7 +478,19 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     optionsPanel->addAndMakeVisible(limitEditable);
     opBounds = opBounds.getUnion(bounds);
 
-    criteriaGroupSet->addGroup({ limitButton, limitLabel, limitEditable });
+    xPos = LEFT_EDGE + TAB_WIDTH;
+    limitSleepLabel = new Label("LimitSL", "Sleep after artifact:");
+    limitSleepLabel->setBounds(bounds = { xPos += TAB_WIDTH, yPos += 30, 140, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(limitSleepLabel);
+    opBounds = opBounds.getUnion(bounds);
+
+    limitSleepEditable = createEditable("LimitSE", String(processor->jumpLimitSleep), "",
+        bounds = { xPos += 150, yPos, 50, C_TEXT_HT });
+    limitSleepEditable->setEnabled(processor->useJumpLimit);
+    optionsPanel->addAndMakeVisible(limitSleepEditable);
+    opBounds = opBounds.getUnion(bounds);
+
+    criteriaGroupSet->addGroup({ limitButton, limitLabel, limitEditable, limitSleepLabel, limitSleepEditable });
 
     /* --------------- Sample voting ------------------ */
     xPos = LEFT_EDGE + TAB_WIDTH;
@@ -858,6 +870,14 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
             processor->setParameter(CrossingDetector::JUMP_LIMIT, newVal);
         }
     }
+    else if (labelThatHasChanged == limitSleepEditable)
+    {
+		float newVal;
+		if (updateFloatLabel(labelThatHasChanged, 0, FLT_MAX, processor->jumpLimitSleep, &newVal))
+        {
+            processor->setParameter(CrossingDetector::JUMP_LIMIT_SLEEP, newVal);
+        }
+    }
     else if (labelThatHasChanged == bufferMaskEditable)
     {
         float newVal;
@@ -993,6 +1013,7 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
     {
         bool limitOn = button->getToggleState();
         limitEditable->setEnabled(limitOn);
+        limitSleepEditable->setEnabled(limitOn);
         processor->setParameter(CrossingDetector::USE_JUMP_LIMIT, static_cast<float>(limitOn));
     }
     else if (button == bufferMaskButton)
@@ -1253,6 +1274,7 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
     // jump limit
     paramValues->setAttribute("bJumpLimit", limitButton->getToggleState());
     paramValues->setAttribute("jumpLimit", limitEditable->getText());
+    paramValues->setAttribute("jumpSleepLimit", limitSleepEditable->getText());
 
     // buffer end mask
     paramValues->setAttribute("bBufferEndMask", bufferMaskButton->getToggleState());
@@ -1345,6 +1367,7 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         // jump limit
         limitButton->setToggleState(xmlNode->getBoolAttribute("bJumpLimit", limitButton->getToggleState()), sendNotificationSync);
         limitEditable->setText(xmlNode->getStringAttribute("jumpLimit", limitEditable->getText()), sendNotificationSync);
+        limitSleepEditable->setText(xmlNode->getStringAttribute("jumpSleepLimit", limitSleepEditable->getText()), sendNotificationSync);
 
         // buffer end mask
         bufferMaskButton->setToggleState(xmlNode->getBoolAttribute("bBufferEndMask", bufferMaskButton->getToggleState()), sendNotificationSync);

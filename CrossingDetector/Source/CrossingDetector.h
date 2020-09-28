@@ -96,6 +96,7 @@ private:
         FUTURE_STRICT,
         USE_JUMP_LIMIT,
         JUMP_LIMIT,
+        JUMP_LIMIT_SLEEP,
         USE_BUF_END_MASK,
         BUF_END_MASK
     };
@@ -237,6 +238,8 @@ private:
     // maximum absolute difference between x[k] and x[k-1] to trigger an event on x[k]
     bool useJumpLimit;
     float jumpLimit;
+    float jumpLimitSleep;
+    int jumpLimitElapsed;
 
     // ------ INTERNALS -----------
 
