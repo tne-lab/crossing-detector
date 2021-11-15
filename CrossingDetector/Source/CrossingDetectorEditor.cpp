@@ -141,7 +141,13 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     thresholdTitle->setFont(subtitleFont);
     optionsPanel->addAndMakeVisible(thresholdTitle);
     opBounds = opBounds.getUnion(bounds);
-
+	/* -------- changes made for asic --------- */
+	asiclimitButton = new ToggleButton("Asic algorithm");
+	asiclimitButton->setBounds(bounds = { xPos + 800, yPos, 200, 50 });
+	asiclimitButton->setToggleState(processor->useasic, dontSendNotification);
+	asiclimitButton->addListener(this);
+	optionsPanel->addAndMakeVisible(asiclimitButton);
+	opBounds = opBounds.getUnion(bounds);
     /* -------- Constant threshold --------- */
 
     xPos += TAB_WIDTH;
@@ -1022,6 +1028,11 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
         bufferMaskEditable->setEnabled(bufMaskOn);
         processor->setParameter(CrossingDetector::USE_BUF_END_MASK, static_cast<float>(bufMaskOn));
     }
+	// changes made for asic 
+	else if (button == asiclimitButton) {
+		bool limitOn = button->getToggleState();
+		processor->setParameter(CrossingDetector::USE_ASIC, static_cast<float>(limitOn));
+	}
 
     // Threshold radio buttons
     else if (button == constantThreshButton)

@@ -56,6 +56,8 @@ CrossingDetector::CrossingDetector()
     , futureStrict          (1.0f)
     , futureSpan            (0)
     , useJumpLimit          (false)
+	// changes made for asic
+	, useasic (false)
     , jumpLimit             (5.0f)
     , jumpLimitSleep        (0)
     , jumpLimitElapsed      (jumpLimitSleep)
@@ -483,6 +485,10 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
     case USE_JUMP_LIMIT:
         useJumpLimit = static_cast<bool>(newValue);
         break;
+		// changes made for asic
+	case USE_ASIC:
+		useasic = static_cast<bool>(newValue);
+		break;
 
     case JUMP_LIMIT:
         jumpLimit = newValue;
@@ -690,8 +696,13 @@ bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal
     float preThresh, float postThresh)
 {
     jassert(pastSamplesAbove >= 0 && futureSamplesAbove >= 0);
-    // check jumpLimit
-    if (useJumpLimit && abs(postVal - preVal) >= jumpLimit)
+	// changes made for asic
+	if (useasic && preVal <= 45 && postVal > 135) {
+		jumpLimitElapsed = 0;
+		return false;
+	}
+	// check jumpLimit
+	if (useJumpLimit && abs(postVal - preVal) >= jumpLimit)
     {
         jumpLimitElapsed = 0;
         return false;

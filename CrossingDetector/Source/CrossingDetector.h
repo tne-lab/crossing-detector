@@ -98,7 +98,9 @@ private:
         JUMP_LIMIT,
         JUMP_LIMIT_SLEEP,
         USE_BUF_END_MASK,
-        BUF_END_MASK
+        BUF_END_MASK,
+		// changes made for asic
+		USE_ASIC
     };
 
     // ---------------------------- PRIVATE FUNCTIONS ----------------------
@@ -234,12 +236,16 @@ private:
     // fraction of spans required to be above / below threshold
     float pastStrict;
     float futureStrict;
-
+	// changes made for asic
+	bool useasic;
     // maximum absolute difference between x[k] and x[k-1] to trigger an event on x[k]
     bool useJumpLimit;
     float jumpLimit;
     float jumpLimitSleep;
     int jumpLimitElapsed;
+
+	// adding constraint on the asic output
+	bool isAsic;
 
     // ------ INTERNALS -----------
 

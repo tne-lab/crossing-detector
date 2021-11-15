@@ -187,7 +187,8 @@ private:
     ScopedPointer<VerticalGroupSet> thresholdGroupSet;
 
     ScopedPointer<ToggleButton> constantThreshButton;
-
+	// changes made for asic 
+	ScopedPointer<ToggleButton> asiclimitButton;
     // adaptive threshold
     // row 1
     ScopedPointer<ToggleButton> adaptiveThreshButton;
