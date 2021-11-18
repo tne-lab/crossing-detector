@@ -46,6 +46,6 @@ See `CrossingDetector/CMAKE_README.txt` and/or the wiki page [here](https://open
 Currently maintained by Sumedh Sopan Nagrale. 
 
 ## Crossing Detector version
-	This version includes an additional constraint which is activated by clicking on asic checkbox which is on the upper right side. 
-	This leads the algorithm to check if the current and previous phases does not have a improbable difference.
-	if current value was 45 and the next value was above 135, the stimulation will not occur.
+This version includes an additional constraint which is activated by clicking on asic checkbox which is on the upper right side. 
+This leads the algorithm to check if the current and previous phases does not have a improbable difference.
+if current value is 135 and the previous value was above 135, the stimulation will not occur at the current iteration.
