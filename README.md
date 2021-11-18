@@ -4,7 +4,7 @@ This plugin for the [Open Ephys GUI](https://github.com/open-ephys/plugin-GUI) f
 
 Cite this code using the DOI above!
 
-<img src="cd2.0_front.png" width="250" /> <img src="cd2.3_settings.png" width="400" />
+<img src="cd2.0_front.png" width="250" /> <img src="cd2.3_settings_asic.png" width="400" />
 
 ## Settings:
 
@@ -43,4 +43,9 @@ See `CrossingDetector/CMAKE_README.txt` and/or the wiki page [here](https://open
 
 \* If you have the GUI built somewhere else, you can specify its location by setting the environment variable `GUI_BASE_DIR` or defining it when calling cmake with the option `-DGUI_BASE_DIR=<location>`.
 
-Currently maintained by Mark Schatza (markschatza@gmail.com)
+Currently maintained by Sumedh Sopan Nagrale. 
+
+## Crossing Detector version
+	This version includes an additional constraint which is activated by clicking on asic checkbox which is on the upper right side. 
+	This leads the algorithm to check if the current and previous phases does not have a improbable difference.
+	if current value was 45 and the next value was above 135, the stimulation will not occur.
