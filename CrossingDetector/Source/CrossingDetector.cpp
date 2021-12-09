@@ -697,7 +697,7 @@ bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal
 {
     jassert(pastSamplesAbove >= 0 && futureSamplesAbove >= 0);
 	// changes made for asic
-	if (useasic && preVal <= 45 && postVal > 135) {
+	if (useasic && preVal <= 90 && postVal > 270) {
 		jumpLimitElapsed = 0;
 		return false;
 	}
