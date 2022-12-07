@@ -30,6 +30,10 @@ CrossingDetector::CrossingDetector()
     : GenericProcessor      ("Crossing Detector")
     , thresholdType         (CONSTANT)
     , constantThresh        (0.0f)
+    , averageDecaySeconds   (5.0f)
+    , averageNewSampWeight  (0.0f)
+    , averageNeedsInit      (true)
+    , runningSquaredAverage (0.0f)
     , indicatorChan         (-1)
     , indicatorTarget       (180.0f)
     , useIndicatorRange     (true)
@@ -185,6 +189,13 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         return index < 0 ? thresholdHistory[index] : pThresh[index];
     };
 
+    // Initialize the running average if we need to.
+    if (averageNeedsInit)
+    {
+        averageNeedsInit = false;
+        runningSquaredAverage = inputAt(0) * inputAt(0);
+    }
+
     // loop over current buffer and add events for newly detected crossings
     for (int i = 0; i < nSamples; ++i)
     {
@@ -192,12 +203,22 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         bool currPosOn = posOn;
         bool currNegOn = negOn;
 
+        // Update the running average whether or not we're using it.
+        // Bog standard first-order exponential smoothing of the squared amplitude.
+        runningSquaredAverage *= (1.0 - averageNewSampWeight);
+        runningSquaredAverage += averageNewSampWeight * inputAt(i) * inputAt(i);
+
         // get and save threshold for this sample
         switch (currThreshType)
         {
         case CONSTANT:
         case ADAPTIVE: // adaptive threshold process updates constantThresh
             pThresh[i] = constantThresh;
+            break;
+
+        case AVERAGE:
+            // Threshold is a multiplier for the RMS average.
+            pThresh[i] = constantThresh * sqrt(runningSquaredAverage);
             break;
 
         case RANDOM:
@@ -300,6 +321,11 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         case ADAPTIVE:
             thresholdVal = constantThresh;
             restartAdaptiveThreshold();
+            break;
+
+        case AVERAGE:
+            thresholdVal = constantThresh;
+            // We don't need to reinitialize the average; keep the old value.
             break;
 
         case RANDOM:
@@ -500,6 +526,12 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         bufferEndMaskMs = static_cast<int>(newValue);
         updateSampleRateDependentValues();
         break;
+
+    case AVERAGE_DECAY_TIME:
+        averageDecaySeconds = newValue;
+        updateSampleRateDependentValues();
+        // We don't need to reinitialize the average; keep the old value.
+        break;
     }
 }
 
@@ -508,6 +540,7 @@ bool CrossingDetector::enable()
     jumpLimitElapsed = jumpLimitSleep;
     updateSampleRateDependentValues();
     restartAdaptiveThreshold();
+    averageNeedsInit = true;
     return isEnabled;
 }
 
@@ -786,4 +819,8 @@ void CrossingDetector::updateSampleRateDependentValues()
     eventDurationSamp = int(std::ceil(eventDuration * sampleRate / 1000.0f));
     timeoutSamp = int(std::floor(timeout * sampleRate / 1000.0f));
     bufferEndMaskSamp = int(std::ceil(bufferEndMaskMs * sampleRate / 1000.0f));
+
+    if (averageDecaySeconds < 0.1)
+        averageDecaySeconds = 0.1;
+    averageNewSampWeight = 1.0 / (averageDecaySeconds * sampleRate);
 }

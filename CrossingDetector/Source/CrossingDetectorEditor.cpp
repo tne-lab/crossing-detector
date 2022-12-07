@@ -160,6 +160,38 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
 
     thresholdGroupSet->addGroup({ constantThreshButton });
 
+    /* -------- Multiple of RMS average threshold --------- */
+
+    yPos += 40;
+
+    averageThreshButton = new ToggleButton("Multiple of RMS average over");
+    averageThreshButton->setLookAndFeel(&rbLookAndFeel);
+    averageThreshButton->setRadioGroupId(threshRadioId, dontSendNotification);
+    averageThreshButton->setBounds(bounds = { xPos, yPos, 250, C_TEXT_HT });
+    averageThreshButton->setToggleState(processor->thresholdType == CrossingDetector::AVERAGE,
+        dontSendNotification);
+    averageThreshButton->setTooltip("Use the RMS average amplitude multiplied by a constant (set on the main editor panel in the signal chain)");
+    averageThreshButton->addListener(this);
+    optionsPanel->addAndMakeVisible(averageThreshButton);
+    opBounds = opBounds.getUnion(bounds);
+
+    averageTimeEditable = createEditable("AvgTimeE", String(processor->averageDecaySeconds),
+        "Average smoothing window", bounds = { xPos + 260, yPos, 50, C_TEXT_HT });
+    averageTimeEditable->setEnabled(averageThreshButton->getToggleState());
+    optionsPanel->addAndMakeVisible(averageTimeEditable);
+    opBounds = opBounds.getUnion(bounds);
+
+    averageTimeLabel = new Label("AvgTimeL", "seconds");
+    averageTimeLabel->setBounds(bounds = { xPos + 320, yPos, 50, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(averageTimeLabel);
+    opBounds = opBounds.getUnion(bounds);
+
+    thresholdGroupSet->addGroup({
+        averageThreshButton,
+        averageTimeLabel,
+        averageTimeEditable
+    });
+
     /* --------- Adaptive threshold -------- */
 
     yPos += 40;
@@ -831,6 +863,22 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         }
     }
 
+    // Average threshold editable labels
+    else if (labelThatHasChanged == averageTimeEditable)
+    {
+        float newVal;
+        if (updateFloatLabel(labelThatHasChanged,
+            -FLT_MAX, FLT_MAX, processor->randomThreshRange[0], &newVal))
+        {
+            // Force sanity here.
+            if (newVal < 0.1) newVal = 0.1;
+            if (newVal > 120) newVal = 120;
+            averageTimeEditable->setText(String(newVal), dontSendNotification);
+
+            processor->setParameter(CrossingDetector::AVERAGE_DECAY_TIME, newVal);
+        }
+    }
+
     // Random threshold editable labels
     else if (labelThatHasChanged == minThreshEditable)
     {
@@ -1032,6 +1080,17 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
             thresholdEditable->setEnabled(true);
             processor->setParameter(CrossingDetector::THRESH_TYPE,
                 static_cast<float>(CrossingDetector::CONSTANT));
+        }
+    }
+    else if (button == averageThreshButton)
+    {
+        bool on = button->getToggleState();
+        averageTimeEditable->setEnabled(on);
+        if (on)
+        {
+            thresholdEditable->setEnabled(true);
+            processor->setParameter(CrossingDetector::THRESH_TYPE,
+                static_cast<float>(CrossingDetector::AVERAGE));
         }
     }
     else if (button == adaptiveThreshButton)

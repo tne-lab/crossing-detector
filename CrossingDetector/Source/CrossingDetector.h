@@ -63,7 +63,7 @@ public:
     bool disable() override;
 
 private:
-    enum ThresholdType { CONSTANT, RANDOM, CHANNEL, ADAPTIVE };
+    enum ThresholdType { CONSTANT, RANDOM, CHANNEL, ADAPTIVE, AVERAGE };
 
     enum Parameter
     {
@@ -98,7 +98,8 @@ private:
         JUMP_LIMIT,
         JUMP_LIMIT_SLEEP,
         USE_BUF_END_MASK,
-        BUF_END_MASK
+        BUF_END_MASK,
+        AVERAGE_DECAY_TIME
     };
 
     // ---------------------------- PRIVATE FUNCTIONS ----------------------
@@ -190,6 +191,10 @@ private:
     // if using constant threshold:
     float constantThresh;
 
+    // if using multiple-of-average threshold:
+    float averageDecaySeconds;
+    float averageNewSampWeight;
+
     // if using adaptive threshold:
     int indicatorChan; // index of the monitored event channel
     float indicatorTarget;
@@ -256,6 +261,9 @@ private:
     CircularArray<float> thresholdHistory;
 
     Array<float> currThresholds;
+
+    bool averageNeedsInit;
+    float runningSquaredAverage;
 
     EventChannel* eventChannelPtr;
     MetaDataDescriptorArray eventMetaDataDescriptors;
