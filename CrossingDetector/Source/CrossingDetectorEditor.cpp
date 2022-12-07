@@ -167,7 +167,7 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     averageThreshButton = new ToggleButton("Multiple of RMS average over");
     averageThreshButton->setLookAndFeel(&rbLookAndFeel);
     averageThreshButton->setRadioGroupId(threshRadioId, dontSendNotification);
-    averageThreshButton->setBounds(bounds = { xPos, yPos, 250, C_TEXT_HT });
+    averageThreshButton->setBounds(bounds = { xPos, yPos, 200, C_TEXT_HT });
     averageThreshButton->setToggleState(processor->thresholdType == CrossingDetector::AVERAGE,
         dontSendNotification);
     averageThreshButton->setTooltip("Use the RMS average amplitude multiplied by a constant (set on the main editor panel in the signal chain)");
@@ -176,13 +176,13 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     opBounds = opBounds.getUnion(bounds);
 
     averageTimeEditable = createEditable("AvgTimeE", String(processor->averageDecaySeconds),
-        "Average smoothing window", bounds = { xPos + 260, yPos, 50, C_TEXT_HT });
+        "Average smoothing window", bounds = { xPos + 210, yPos, 50, C_TEXT_HT });
     averageTimeEditable->setEnabled(averageThreshButton->getToggleState());
     optionsPanel->addAndMakeVisible(averageTimeEditable);
     opBounds = opBounds.getUnion(bounds);
 
     averageTimeLabel = new Label("AvgTimeL", "seconds");
-    averageTimeLabel->setBounds(bounds = { xPos + 320, yPos, 50, C_TEXT_HT });
+    averageTimeLabel->setBounds(bounds = { xPos + 270, yPos, 50, C_TEXT_HT });
     optionsPanel->addAndMakeVisible(averageTimeLabel);
     opBounds = opBounds.getUnion(bounds);
 
@@ -1309,6 +1309,7 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
     // threshold
     paramValues->setAttribute("thresholdType", processor->thresholdType);
     paramValues->setAttribute("threshold", processor->constantThresh);
+    paramValues->setAttribute("averageDecaySeconds", averageTimeEditable->getText());
     paramValues->setAttribute("indicatorChanName", processor->indicatorChanName);
     paramValues->setAttribute("indicatorTarget", targetEditable->getText());
     paramValues->setAttribute("useIndicatorRange", indicatorRangeButton->getToggleState());
@@ -1380,6 +1381,7 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         thresholdEditable->setText(xmlNode->getStringAttribute("threshold", thresholdEditable->getText()), sendNotificationSync);
         minThreshEditable->setText(xmlNode->getStringAttribute("minThresh", minThreshEditable->getText()), sendNotificationSync);
         maxThreshEditable->setText(xmlNode->getStringAttribute("maxThresh", maxThreshEditable->getText()), sendNotificationSync);
+        averageTimeEditable->setText(xmlNode->getStringAttribute("averageDecaySeconds", averageTimeEditable->getText()), sendNotificationSync);
 		
 		int thresholdChanId = xmlNode->getIntAttribute("thresholdChanId", channelThreshBox->getSelectedId());
 		if (channelThreshBox->indexOfItemId(thresholdChanId) >= 0) // guard against different # of channels
@@ -1402,6 +1404,10 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         {
         case CrossingDetector::CONSTANT:
             constantThreshButton->setToggleState(true, sendNotificationSync);
+            break;
+
+        case CrossingDetector::AVERAGE:
+            averageThreshButton->setToggleState(true, sendNotificationSync);
             break;
 
         case CrossingDetector::ADAPTIVE:
