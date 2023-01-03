@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cfloat>  // FLT_MAX
 
 CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
-    : VisualizerEditor(parentNode, 205, useDefaultParameterEditors)
+    : VisualizerEditor(parentNode, 255, useDefaultParameterEditors)
 {
     tabText = "Crossing Detector";
     CrossingDetector* processor = static_cast<CrossingDetector*>(parentNode);
@@ -42,11 +42,11 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
 
     inputBox = new ComboBox("Input channel");
     inputBox->setTooltip("Continuous channel to analyze");
-    inputBox->setBounds(xPos += 33, yPos, 40, TEXT_HT);
+    inputBox->setBounds(xPos += 33, yPos, 90, TEXT_HT);
     inputBox->addListener(this);
     addAndMakeVisible(inputBox);
 
-    outputLabel = createLabel("OutL", "Out:", { xPos += 50, yPos, 40, TEXT_HT });
+    outputLabel = createLabel("OutL", "Out:", { xPos += 100, yPos, 40, TEXT_HT });
     addAndMakeVisible(outputLabel);
 
     outputBox = new ComboBox("Out event channel");
@@ -1171,7 +1171,11 @@ void CrossingDetectorEditor::updateSettings()
         for (int chan = 1; chan <= numInputs; ++chan)
         {
             // using 1-based ids since 0 is reserved for "nothing selected"
-            inputBox->addItem(String(chan), chan);
+            // Build a descriptive name ("number:name").
+            const DataChannel* chanInfo = processor->getDataChannel(chan - 1);
+            const String& chanName = chanInfo->getName();
+            String newName = String(chan) + ":" + chanName;
+            inputBox->addItem(newName, chan);
             if (currInputId == chan)
             {
                 inputBox->setSelectedId(chan, dontSendNotification);
