@@ -808,25 +808,37 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
             processor->setParameter(CrossingDetector::TIMEOUT, static_cast<float>(newVal));
         }
     }
-    else if (labelThatHasChanged == thresholdEditable &&
-        (processor->thresholdType == CrossingDetector::CONSTANT || processor->thresholdType == CrossingDetector::ADAPTIVE))
+    else if (labelThatHasChanged == thresholdEditable)
     {
         float newVal;
-        if (updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX,
-            processor->constantThresh, &newVal))
+        bool isok;
+
+        isok = false;
+        switch (processor->thresholdType)
         {
-            if (processor->thresholdType == CrossingDetector::ADAPTIVE && processor->useAdaptThreshRange)
-            {
-                // enforce threshold range
-                float valInRange = processor->toThresholdInRange(newVal);
-                if (valInRange != newVal)
-                {
-                    labelThatHasChanged->setText(String(valInRange), dontSendNotification);
-                    newVal = valInRange;
-                }
-            }
-            processor->setParameter(CrossingDetector::CONST_THRESH, newVal);
+        case CrossingDetector::CONSTANT:
+        case CrossingDetector::ADAPTIVE:
+        case CrossingDetector::AVERAGE:
+            isok = updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX,
+                processor->constantThresh, &newVal);
+            break;
+        default:
+            break;
         }
+
+        if ( isok && (processor->thresholdType == CrossingDetector::ADAPTIVE) && (processor->useAdaptThreshRange) )
+        {
+            // enforce threshold range
+            float valInRange = processor->toThresholdInRange(newVal);
+            if (valInRange != newVal)
+            {
+                labelThatHasChanged->setText(String(valInRange), dontSendNotification);
+                newVal = valInRange;
+            }
+        }
+
+        if (isok)
+            processor->setParameter(CrossingDetector::CONST_THRESH, newVal);
     }
 
     // Sample voting editable labels
