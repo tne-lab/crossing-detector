@@ -71,6 +71,7 @@ CrossingDetector::CrossingDetector()
     , thresholdHistory      (pastSpan + futureSpan + 2)
     , eventChannelPtr       (nullptr)
     , turnoffEvent          (nullptr)
+    , tattleChannelPtr      (nullptr)
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
 
@@ -101,20 +102,6 @@ AudioProcessorEditor* CrossingDetector::createEditor()
 {
     editor = new CrossingDetectorEditor(this);
     return editor;
-}
-
-void CrossingDetector::createDataChannels()
-{
-    // Force sanity.
-    tattleChannelPtr = nullptr;
-
-    // Add a tattle channel if and only if we want tattling.
-    if (wantTattleThreshold)
-    {
-        tattleChannelPtr = new DataChannel(DataChannel::AUX_CHANNEL, getSampleRate(), this);
-        tattleChannelPtr->setName("Threshold");
-        dataChannelArray.add(tattleChannelPtr);
-    }
 }
 
 void CrossingDetector::createEventChannels()
@@ -153,6 +140,26 @@ void CrossingDetector::createEventChannels()
     }
 
     eventChannelPtr = eventChannelArray.add(chan);
+}
+
+void CrossingDetector::updateSettings()
+{
+    // NOTE - The "createDataChannels()" method is only called for sources. We aren't a source.
+    // So, we have to do the equivalent here, and manually adjust "settings.numOutputs".
+
+    // Force sanity.
+    tattleChannelPtr = nullptr;
+
+    // Add a tattle channel if and only if we want tattling.
+    if (wantTattleThreshold)
+    {
+        tattleChannelPtr = new DataChannel(DataChannel::HEADSTAGE_CHANNEL, getSampleRate(), this);
+        tattleChannelPtr->setName("Threshold");
+        dataChannelArray.add(tattleChannelPtr);
+    }
+
+    // Manually update the channel count.
+    settings.numOutputs = dataChannelArray.size();
 }
 
 void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
@@ -311,6 +318,21 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         }
     }
 
+    // Tattle the threshold values, if we have a tattle channel.
+    if (tattleChannelPtr != nullptr)
+    {
+        int tattleChannelNum = dataChannelArray.indexOf(tattleChannelPtr);
+        if (tattleChannelNum >= 0)
+        {
+            float *wpThresh = continuousBuffer.getWritePointer(tattleChannelNum);
+            if (wpThresh != nullptr)
+            {
+                for (int i = 0; i < nSamples; ++i)
+                    wpThresh[i] = pThresh[i];
+            }
+        }
+    }
+
     // update inputHistory and thresholdHistory
     inputHistory.enqueueArray(rp, nSamples);
     thresholdHistory.enqueueArray(pThresh, nSamples);
@@ -458,9 +480,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         static_cast<CrossingDetectorEditor*>(getEditor())->updateChannelThreshBox();
 
         // update signal chain, since the event channel metadata has to get updated.
-        // pass nullptr instead of a pointer to the editor so that it just updates
-        // settings and doesn't try to update the visible editors.
-        //CoreServices::updateSignalChain(nullptr);
+        //CoreServices::updateSignalChain(editor);
         break;
 
     case EVENT_CHAN:
@@ -550,6 +570,8 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 
     case WANT_TATTLE_THRESH:
         wantTattleThreshold = newValue ? true : false;
+        // Force a signal chain update, since the number of output channels may have changed.
+        CoreServices::updateSignalChain(editor);
         break;
     }
 }

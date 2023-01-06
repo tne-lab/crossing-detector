@@ -53,8 +53,10 @@ public:
     bool hasEditor() const { return true; }
     AudioProcessorEditor* createEditor() override;
 
-    void createDataChannels() override;
     void createEventChannels() override;
+    // We have to manually add channels in updateSettings().
+    // createDataChannels() is only called for sources.
+    void updateSettings() override;
 
     void process(AudioSampleBuffer& continuousBuffer) override;
 

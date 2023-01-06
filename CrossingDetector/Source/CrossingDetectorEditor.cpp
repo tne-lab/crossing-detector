@@ -656,7 +656,7 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
 
     /* ------------------ Event duration --------------- */
 
-    xPos += TAB_WIDTH;
+    xPos = LEFT_EDGE + TAB_WIDTH;
     yPos += 45;
 
     durationLabel = new Label("DurL", "Event duration:");
@@ -675,6 +675,22 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     opBounds = opBounds.getUnion(bounds);
 
     outputGroupSet->addGroup({ durationLabel, durationEditable, durationUnit });
+
+    /* ------------------ Tattle channels --------------- */
+
+    xPos = LEFT_EDGE + TAB_WIDTH;
+    yPos += 45;
+
+    tattleThreshButton = new ToggleButton("Output threshold values on a new channel.");
+    tattleThreshButton->setBounds(bounds = { xPos, yPos, 270, C_TEXT_HT });
+    tattleThreshButton->setToggleState(processor->wantTattleThreshold, dontSendNotification);
+    tattleThreshButton->addListener(this);
+    tattleThreshButton->setTooltip("Create a new channel and use it to record running threshold values for debugging purposes.");
+    optionsPanel->addAndMakeVisible(tattleThreshButton);
+    opBounds = opBounds.getUnion(bounds);
+
+    outputGroupSet->addGroup({ tattleThreshButton });
+
 
     // some extra padding
     opBounds.setBottom(opBounds.getBottom() + 10);
@@ -1083,6 +1099,13 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
         processor->setParameter(CrossingDetector::USE_BUF_END_MASK, static_cast<float>(bufMaskOn));
     }
 
+    // Buttons for debugging tattles
+    else if (button == tattleThreshButton)
+    {
+        bool wantTattle = button->getToggleState();
+        processor->setParameter(CrossingDetector::WANT_TATTLE_THRESH, static_cast<float>(wantTattle));
+    }
+
     // Threshold radio buttons
     else if (button == constantThreshButton)
     {
@@ -1359,6 +1382,9 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
     // timing
     paramValues->setAttribute("durationMS", durationEditable->getText());
     paramValues->setAttribute("timeoutMS", timeoutEditable->getText());
+
+    // debug tattles
+    paramValues->setAttribute("bTattleThresh", tattleThreshButton->getToggleState());
 }
 
 void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
@@ -1457,6 +1483,9 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         // timing
         durationEditable->setText(xmlNode->getStringAttribute("durationMS", durationEditable->getText()), sendNotificationSync);
         timeoutEditable->setText(xmlNode->getStringAttribute("timeoutMS", timeoutEditable->getText()), sendNotificationSync);
+
+        // debug tattles
+        tattleThreshButton->setToggleState(xmlNode->getBoolAttribute("bTattleThresh", tattleThreshButton->getToggleState()), sendNotificationSync);
 
         // backwards compatibility
         // old duration/timeout in samples, convert to ms.
