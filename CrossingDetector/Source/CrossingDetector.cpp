@@ -29,6 +29,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 CrossingDetector::CrossingDetector()
     : GenericProcessor      ("Crossing Detector")
     , thresholdType         (CONSTANT)
+    , wantTattleThreshold   (false)
     , constantThresh        (0.0f)
     , averageDecaySeconds   (5.0f)
     , averageNewSampWeight  (0.0f)
@@ -100,6 +101,20 @@ AudioProcessorEditor* CrossingDetector::createEditor()
 {
     editor = new CrossingDetectorEditor(this);
     return editor;
+}
+
+void CrossingDetector::createDataChannels()
+{
+    // Force sanity.
+    tattleChannelPtr = nullptr;
+
+    // Add a tattle channel if and only if we want tattling.
+    if (wantTattleThreshold)
+    {
+        tattleChannelPtr = new DataChannel(DataChannel::AUX_CHANNEL, getSampleRate(), this);
+        tattleChannelPtr->setName("Threshold");
+        dataChannelArray.add(tattleChannelPtr);
+    }
 }
 
 void CrossingDetector::createEventChannels()
@@ -515,7 +530,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         break;
 
     case JUMP_LIMIT_SLEEP:
-		jumpLimitSleep = newValue * getDataChannel(0)->getSampleRate();
+        jumpLimitSleep = newValue * getSampleRate();
         break;
 
     case USE_BUF_END_MASK:
@@ -531,6 +546,10 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         averageDecaySeconds = newValue;
         updateSampleRateDependentValues();
         // We don't need to reinitialize the average; keep the old value.
+        break;
+
+    case WANT_TATTLE_THRESH:
+        wantTattleThreshold = newValue ? true : false;
         break;
     }
 }
@@ -551,6 +570,19 @@ bool CrossingDetector::disable()
     // cancel any pending turning-off
     turnoffEvent = nullptr;
     return true;
+}
+
+float CrossingDetector::getSampleRate(int subProcessorIdx = 0)
+{
+    float sampleRate = getDefaultSampleRate();
+
+    const DataChannel* refChan = getDataChannel(inputChannel);
+    if (refChan == nullptr)
+        refChan = getDataChannel(0);
+    if (refChan != nullptr)
+        sampleRate = refChan->getSampleRate();
+
+    return sampleRate;
 }
 
 // ----- private functions ------
@@ -812,9 +844,7 @@ void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
 
 void CrossingDetector::updateSampleRateDependentValues()
 {
-    const DataChannel* inChan = getDataChannel(inputChannel);
-    if (inChan == nullptr) { return; }
-    float sampleRate = inChan->getSampleRate();
+    float sampleRate = getSampleRate();
 
     eventDurationSamp = int(std::ceil(eventDuration * sampleRate / 1000.0f));
     timeoutSamp = int(std::floor(timeout * sampleRate / 1000.0f));

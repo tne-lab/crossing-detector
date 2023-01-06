@@ -53,6 +53,7 @@ public:
     bool hasEditor() const { return true; }
     AudioProcessorEditor* createEditor() override;
 
+    void createDataChannels() override;
     void createEventChannels() override;
 
     void process(AudioSampleBuffer& continuousBuffer) override;
@@ -61,6 +62,8 @@ public:
 
     bool enable() override;
     bool disable() override;
+
+    float getSampleRate(int subProcessorIdx = 0) override;
 
 private:
     enum ThresholdType { CONSTANT, RANDOM, CHANNEL, ADAPTIVE, AVERAGE };
@@ -99,7 +102,8 @@ private:
         JUMP_LIMIT_SLEEP,
         USE_BUF_END_MASK,
         BUF_END_MASK,
-        AVERAGE_DECAY_TIME
+        AVERAGE_DECAY_TIME,
+        WANT_TATTLE_THRESH
     };
 
     // ---------------------------- PRIVATE FUNCTIONS ----------------------
@@ -187,6 +191,8 @@ private:
     // ------ PARAMETERS ------------
 
     ThresholdType thresholdType;
+
+    bool wantTattleThreshold;
 
     // if using constant threshold:
     float constantThresh;
@@ -286,6 +292,8 @@ private:
 
     // full subprocessor ID of input channel (or 0 if none selected)
     juce::uint32 validSubProcFullID;
+
+    DataChannel *tattleChannelPtr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetector);
 };
