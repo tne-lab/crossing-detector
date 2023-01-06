@@ -63,7 +63,7 @@ public:
     bool enable() override;
     bool disable() override;
 
-    float getSampleRate(int subProcessorIdx = 0) override;
+    float getSampleRate(int subProcessorIdx = 0) const override;
 
 private:
     enum ThresholdType { CONSTANT, RANDOM, CHANNEL, ADAPTIVE, AVERAGE };

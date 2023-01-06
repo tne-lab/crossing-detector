@@ -572,7 +572,7 @@ bool CrossingDetector::disable()
     return true;
 }
 
-float CrossingDetector::getSampleRate(int subProcessorIdx = 0)
+float CrossingDetector::getSampleRate(int subProcessorIdx) const
 {
     float sampleRate = getDefaultSampleRate();
 
