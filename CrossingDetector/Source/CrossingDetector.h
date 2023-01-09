@@ -24,6 +24,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef CROSSING_DETECTOR_H_INCLUDED
 #define CROSSING_DETECTOR_H_INCLUDED
 
+// FIXME - Debugging switch
+#define TATTLE_ON_NEW_CHANNEL 0
+
 #include <ProcessorHeaders.h>
 #include "CircularArray.h"
 
@@ -54,9 +57,15 @@ public:
     AudioProcessorEditor* createEditor() override;
 
     void createEventChannels() override;
+#if TATTLE_ON_NEW_CHANNEL
     // We have to manually add channels in updateSettings().
     // createDataChannels() is only called for sources.
     void updateSettings() override;
+    // FIXME - Add Phase Calculator's kludge for new channels.
+    // Other methods PC overrides have reasonable default implementations.
+// NOTE - This doesn't help; still no output.
+//    bool isGeneratesTimestamps() const override { return true; }
+#endif
 
     void process(AudioSampleBuffer& continuousBuffer) override;
 
@@ -295,7 +304,9 @@ private:
     // full subprocessor ID of input channel (or 0 if none selected)
     juce::uint32 validSubProcFullID;
 
+#if TATTLE_ON_NEW_CHANNEL
     DataChannel *tattleChannelPtr;
+#endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetector);
 };

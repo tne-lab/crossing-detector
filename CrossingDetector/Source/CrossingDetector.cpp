@@ -71,7 +71,9 @@ CrossingDetector::CrossingDetector()
     , thresholdHistory      (pastSpan + futureSpan + 2)
     , eventChannelPtr       (nullptr)
     , turnoffEvent          (nullptr)
+#if TATTLE_ON_NEW_CHANNEL
     , tattleChannelPtr      (nullptr)
+#endif
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
 
@@ -142,6 +144,9 @@ void CrossingDetector::createEventChannels()
     eventChannelPtr = eventChannelArray.add(chan);
 }
 
+#if TATTLE_ON_NEW_CHANNEL
+// FIXME - This doesn't work properly. It detects but we don't get output.
+// Implementation was cribbed from the "Phase Calculator" plugin.
 void CrossingDetector::updateSettings()
 {
     // NOTE - The "createDataChannels()" method is only called for sources. We aren't a source.
@@ -161,6 +166,7 @@ void CrossingDetector::updateSettings()
     // Manually update the channel count.
     settings.numOutputs = dataChannelArray.size();
 }
+#endif
 
 void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
 {
@@ -319,17 +325,25 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
     }
 
     // Tattle the threshold values, if we have a tattle channel.
-    if (tattleChannelPtr != nullptr)
+
+    int tattleChannelNum = -1;
+    if (wantTattleThreshold)
     {
-        int tattleChannelNum = dataChannelArray.indexOf(tattleChannelPtr);
-        if (tattleChannelNum >= 0)
+#if TATTLE_ON_NEW_CHANNEL
+        if (tattleChannelPtr != nullptr)
+            tattleChannelNum = dataChannelArray.indexOf(tattleChannelPtr);
+#else
+        tattleChannelNum = inputChannel;
+#endif
+    }
+
+    if (tattleChannelNum >= 0)
+    {
+        float *wpThresh = continuousBuffer.getWritePointer(tattleChannelNum);
+        if (wpThresh != nullptr)
         {
-            float *wpThresh = continuousBuffer.getWritePointer(tattleChannelNum);
-            if (wpThresh != nullptr)
-            {
-                for (int i = 0; i < nSamples; ++i)
-                    wpThresh[i] = pThresh[i];
-            }
+            for (int i = 0; i < nSamples; ++i)
+                wpThresh[i] = pThresh[i];
         }
     }
 
@@ -570,8 +584,10 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
 
     case WANT_TATTLE_THRESH:
         wantTattleThreshold = newValue ? true : false;
+#if TATTLE_ON_NEW_CHANNEL
         // Force a signal chain update, since the number of output channels may have changed.
         CoreServices::updateSignalChain(editor);
+#endif
         break;
     }
 }

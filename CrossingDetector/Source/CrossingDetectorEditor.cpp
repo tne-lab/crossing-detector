@@ -681,11 +681,20 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     xPos = LEFT_EDGE + TAB_WIDTH;
     yPos += 45;
 
-    tattleThreshButton = new ToggleButton("Output threshold values on a new channel.");
+    // NOTE - In a perfect world, we'd create a new channel for the threshold, but that's misbehaving. Overwrite the input instead.
+#if TATTLE_ON_NEW_CHANNEL
+    tattleThreshButton = new ToggleButton("Output threshold value on a new channel.");
+#else
+    tattleThreshButton = new ToggleButton("Output threshold value (replacing input).");
+#endif
     tattleThreshButton->setBounds(bounds = { xPos, yPos, 270, C_TEXT_HT });
     tattleThreshButton->setToggleState(processor->wantTattleThreshold, dontSendNotification);
     tattleThreshButton->addListener(this);
-    tattleThreshButton->setTooltip("Create a new channel and use it to record running threshold values for debugging purposes.");
+#if TATTLE_ON_NEW_CHANNEL
+    tattleThreshButton->setTooltip("Create a new channel and use it to record the running threshold value for debugging purposes.");
+#else
+    tattleThreshButton->setTooltip("Replace the input channel's data with the running threshold value for debugging purposes.");
+#endif
     optionsPanel->addAndMakeVisible(tattleThreshButton);
     opBounds = opBounds.getUnion(bounds);
 
