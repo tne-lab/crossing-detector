@@ -324,6 +324,14 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         }
     }
 
+    // update inputHistory and thresholdHistory
+    inputHistory.enqueueArray(rp, nSamples);
+    thresholdHistory.enqueueArray(pThresh, nSamples);
+
+    // shift sampToReenable so it is relative to the next buffer
+    sampToReenable = jmax(0, sampToReenable - nSamples);
+
+
     // Tattle the threshold values, if we have a tattle channel.
 
     int tattleChannelNum = -1;
@@ -346,13 +354,6 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
                 wpThresh[i] = pThresh[i];
         }
     }
-
-    // update inputHistory and thresholdHistory
-    inputHistory.enqueueArray(rp, nSamples);
-    thresholdHistory.enqueueArray(pThresh, nSamples);
-
-    // shift sampToReenable so it is relative to the next buffer
-    sampToReenable = jmax(0, sampToReenable - nSamples);
 }
 
 // all new values should be validated before this function is called!
