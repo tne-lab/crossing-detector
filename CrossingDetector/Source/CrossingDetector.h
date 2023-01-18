@@ -62,7 +62,7 @@ public:
     // createDataChannels() is only called for sources.
     void updateSettings() override;
     // FIXME - Add Phase Calculator's kludge for new channels.
-    // Other methods PC overrides have reasonable default implementations.
+    // Other methods that PC overrides have reasonable default implementations.
 // NOTE - This doesn't help; still no output.
 //    bool isGeneratesTimestamps() const override { return true; }
 #endif

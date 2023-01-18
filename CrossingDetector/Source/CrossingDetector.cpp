@@ -332,7 +332,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
     sampToReenable = jmax(0, sampToReenable - nSamples);
 
 
-    // Tattle the threshold values, if we have a tattle channel.
+    // Tattle the threshold values, if desired.
 
     int tattleChannelNum = -1;
     if (wantTattleThreshold)
