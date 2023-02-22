@@ -4,7 +4,7 @@ This plugin for the [Open Ephys GUI](https://github.com/open-ephys/plugin-GUI) f
 
 Cite this code using the DOI above!
 
-<img src="cd2.0_front.png" width="250" /> <img src="cd2.3_settings.png" width="400" />
+<img src="cd2.4_front.png" width="250" /> <img src="cd2.4_settings.png" width="400" />
 
 ## Settings:
 

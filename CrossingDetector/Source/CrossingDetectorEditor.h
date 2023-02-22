@@ -36,7 +36,8 @@ Editor (in signal chain) contains:
 - Event timeout control
 
 Canvas/visualizer contains:
-- Threshold type selection - constant, adaptive, random, or channel (with parameters)
+- Threshold type selection - constant, rms average, adaptive, random, or channel (with parameters)
+- Threshold tattle enable/disable
 - Jump limiting toggle and max jump box
 - Voting settings (pre/post event span and strictness)
 - Event duration control
@@ -188,6 +189,11 @@ private:
 
     ScopedPointer<ToggleButton> constantThreshButton;
 
+    // multiple of RMS average
+    ScopedPointer<ToggleButton> averageThreshButton;
+    ScopedPointer<Label> averageTimeLabel;
+    ScopedPointer<Label> averageTimeEditable;
+
     // adaptive threshold
     // row 1
     ScopedPointer<ToggleButton> adaptiveThreshButton;
@@ -273,6 +279,9 @@ private:
     ScopedPointer<Label> durationLabel;
     ScopedPointer<Label> durationEditable;
     ScopedPointer<Label> durationUnit;
+
+    // threshold tattling
+    ScopedPointer<ToggleButton> tattleThreshButton;
 };
 
 // Visualizer window containing additional settings

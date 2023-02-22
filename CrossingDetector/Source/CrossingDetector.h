@@ -24,6 +24,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef CROSSING_DETECTOR_H_INCLUDED
 #define CROSSING_DETECTOR_H_INCLUDED
 
+// FIXME - Debugging switch
+#define TATTLE_ON_NEW_CHANNEL 0
+
 #include <ProcessorHeaders.h>
 #include "CircularArray.h"
 
@@ -54,6 +57,15 @@ public:
     AudioProcessorEditor* createEditor() override;
 
     void createEventChannels() override;
+#if TATTLE_ON_NEW_CHANNEL
+    // We have to manually add channels in updateSettings().
+    // createDataChannels() is only called for sources.
+    void updateSettings() override;
+    // FIXME - Add Phase Calculator's kludge for new channels.
+    // Other methods that PC overrides have reasonable default implementations.
+// NOTE - This doesn't help; still no output.
+//    bool isGeneratesTimestamps() const override { return true; }
+#endif
 
     void process(AudioSampleBuffer& continuousBuffer) override;
 
@@ -62,8 +74,10 @@ public:
     bool enable() override;
     bool disable() override;
 
+    float getSampleRate(int subProcessorIdx = 0) const override;
+
 private:
-    enum ThresholdType { CONSTANT, RANDOM, CHANNEL, ADAPTIVE };
+    enum ThresholdType { CONSTANT, RANDOM, CHANNEL, ADAPTIVE, AVERAGE };
 
     enum Parameter
     {
@@ -98,7 +112,9 @@ private:
         JUMP_LIMIT,
         JUMP_LIMIT_SLEEP,
         USE_BUF_END_MASK,
-        BUF_END_MASK
+        BUF_END_MASK,
+        AVERAGE_DECAY_TIME,
+        WANT_TATTLE_THRESH
     };
 
     // ---------------------------- PRIVATE FUNCTIONS ----------------------
@@ -187,8 +203,14 @@ private:
 
     ThresholdType thresholdType;
 
+    bool wantTattleThreshold;
+
     // if using constant threshold:
     float constantThresh;
+
+    // if using multiple-of-average threshold:
+    float averageDecaySeconds;
+    float averageNewSampWeight;
 
     // if using adaptive threshold:
     int indicatorChan; // index of the monitored event channel
@@ -257,6 +279,9 @@ private:
 
     Array<float> currThresholds;
 
+    bool averageNeedsInit;
+    float runningSquaredAverage;
+
     EventChannel* eventChannelPtr;
     MetaDataDescriptorArray eventMetaDataDescriptors;
     TTLEventPtr turnoffEvent; // holds a turnoff event that must be added in a later buffer
@@ -278,6 +303,10 @@ private:
 
     // full subprocessor ID of input channel (or 0 if none selected)
     juce::uint32 validSubProcFullID;
+
+#if TATTLE_ON_NEW_CHANNEL
+    DataChannel *tattleChannelPtr;
+#endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetector);
 };

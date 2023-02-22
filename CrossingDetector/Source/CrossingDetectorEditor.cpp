@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cfloat>  // FLT_MAX
 
 CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, bool useDefaultParameterEditors)
-    : VisualizerEditor(parentNode, 205, useDefaultParameterEditors)
+    : VisualizerEditor(parentNode, 255, useDefaultParameterEditors)
 {
     tabText = "Crossing Detector";
     CrossingDetector* processor = static_cast<CrossingDetector*>(parentNode);
@@ -42,11 +42,11 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
 
     inputBox = new ComboBox("Input channel");
     inputBox->setTooltip("Continuous channel to analyze");
-    inputBox->setBounds(xPos += 33, yPos, 40, TEXT_HT);
+    inputBox->setBounds(xPos += 33, yPos, 90, TEXT_HT);
     inputBox->addListener(this);
     addAndMakeVisible(inputBox);
 
-    outputLabel = createLabel("OutL", "Out:", { xPos += 50, yPos, 40, TEXT_HT });
+    outputLabel = createLabel("OutL", "Out:", { xPos += 100, yPos, 40, TEXT_HT });
     addAndMakeVisible(outputLabel);
 
     outputBox = new ComboBox("Out event channel");
@@ -159,6 +159,38 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     opBounds = opBounds.getUnion(bounds);
 
     thresholdGroupSet->addGroup({ constantThreshButton });
+
+    /* -------- Multiple of RMS average threshold --------- */
+
+    yPos += 40;
+
+    averageThreshButton = new ToggleButton("Multiple of RMS average over");
+    averageThreshButton->setLookAndFeel(&rbLookAndFeel);
+    averageThreshButton->setRadioGroupId(threshRadioId, dontSendNotification);
+    averageThreshButton->setBounds(bounds = { xPos, yPos, 200, C_TEXT_HT });
+    averageThreshButton->setToggleState(processor->thresholdType == CrossingDetector::AVERAGE,
+        dontSendNotification);
+    averageThreshButton->setTooltip("Use the RMS average amplitude multiplied by a constant (set on the main editor panel in the signal chain)");
+    averageThreshButton->addListener(this);
+    optionsPanel->addAndMakeVisible(averageThreshButton);
+    opBounds = opBounds.getUnion(bounds);
+
+    averageTimeEditable = createEditable("AvgTimeE", String(processor->averageDecaySeconds),
+        "Average smoothing window", bounds = { xPos + 210, yPos, 50, C_TEXT_HT });
+    averageTimeEditable->setEnabled(averageThreshButton->getToggleState());
+    optionsPanel->addAndMakeVisible(averageTimeEditable);
+    opBounds = opBounds.getUnion(bounds);
+
+    averageTimeLabel = new Label("AvgTimeL", "seconds");
+    averageTimeLabel->setBounds(bounds = { xPos + 270, yPos, 50, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(averageTimeLabel);
+    opBounds = opBounds.getUnion(bounds);
+
+    thresholdGroupSet->addGroup({
+        averageThreshButton,
+        averageTimeLabel,
+        averageTimeEditable
+    });
 
     /* --------- Adaptive threshold -------- */
 
@@ -624,7 +656,7 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
 
     /* ------------------ Event duration --------------- */
 
-    xPos += TAB_WIDTH;
+    xPos = LEFT_EDGE + TAB_WIDTH;
     yPos += 45;
 
     durationLabel = new Label("DurL", "Event duration:");
@@ -643,6 +675,31 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode, boo
     opBounds = opBounds.getUnion(bounds);
 
     outputGroupSet->addGroup({ durationLabel, durationEditable, durationUnit });
+
+    /* ------------------ Tattle channels --------------- */
+
+    xPos = LEFT_EDGE + TAB_WIDTH;
+    yPos += 45;
+
+    // NOTE - In a perfect world, we'd create a new channel for the threshold, but that's misbehaving. Overwrite the input instead.
+#if TATTLE_ON_NEW_CHANNEL
+    tattleThreshButton = new ToggleButton("Output threshold value on a new channel.");
+#else
+    tattleThreshButton = new ToggleButton("Output threshold value (replacing input).");
+#endif
+    tattleThreshButton->setBounds(bounds = { xPos, yPos, 270, C_TEXT_HT });
+    tattleThreshButton->setToggleState(processor->wantTattleThreshold, dontSendNotification);
+    tattleThreshButton->addListener(this);
+#if TATTLE_ON_NEW_CHANNEL
+    tattleThreshButton->setTooltip("Create a new channel and use it to record the running threshold value for debugging purposes.");
+#else
+    tattleThreshButton->setTooltip("Replace the input channel's data with the running threshold value for debugging purposes.");
+#endif
+    optionsPanel->addAndMakeVisible(tattleThreshButton);
+    opBounds = opBounds.getUnion(bounds);
+
+    outputGroupSet->addGroup({ tattleThreshButton });
+
 
     // some extra padding
     opBounds.setBottom(opBounds.getBottom() + 10);
@@ -776,25 +833,37 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
             processor->setParameter(CrossingDetector::TIMEOUT, static_cast<float>(newVal));
         }
     }
-    else if (labelThatHasChanged == thresholdEditable &&
-        (processor->thresholdType == CrossingDetector::CONSTANT || processor->thresholdType == CrossingDetector::ADAPTIVE))
+    else if (labelThatHasChanged == thresholdEditable)
     {
         float newVal;
-        if (updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX,
-            processor->constantThresh, &newVal))
+        bool isok;
+
+        isok = false;
+        switch (processor->thresholdType)
         {
-            if (processor->thresholdType == CrossingDetector::ADAPTIVE && processor->useAdaptThreshRange)
-            {
-                // enforce threshold range
-                float valInRange = processor->toThresholdInRange(newVal);
-                if (valInRange != newVal)
-                {
-                    labelThatHasChanged->setText(String(valInRange), dontSendNotification);
-                    newVal = valInRange;
-                }
-            }
-            processor->setParameter(CrossingDetector::CONST_THRESH, newVal);
+        case CrossingDetector::CONSTANT:
+        case CrossingDetector::ADAPTIVE:
+        case CrossingDetector::AVERAGE:
+            isok = updateFloatLabel(labelThatHasChanged, -FLT_MAX, FLT_MAX,
+                processor->constantThresh, &newVal);
+            break;
+        default:
+            break;
         }
+
+        if ( isok && (processor->thresholdType == CrossingDetector::ADAPTIVE) && (processor->useAdaptThreshRange) )
+        {
+            // enforce threshold range
+            float valInRange = processor->toThresholdInRange(newVal);
+            if (valInRange != newVal)
+            {
+                labelThatHasChanged->setText(String(valInRange), dontSendNotification);
+                newVal = valInRange;
+            }
+        }
+
+        if (isok)
+            processor->setParameter(CrossingDetector::CONST_THRESH, newVal);
     }
 
     // Sample voting editable labels
@@ -828,6 +897,22 @@ void CrossingDetectorEditor::labelTextChanged(Label* labelThatHasChanged)
         if (updateIntLabel(labelThatHasChanged, 0, INT_MAX, processor->futureSpan, &newVal))
         {
             processor->setParameter(CrossingDetector::FUTURE_SPAN, static_cast<float>(newVal));
+        }
+    }
+
+    // Average threshold editable labels
+    else if (labelThatHasChanged == averageTimeEditable)
+    {
+        float newVal;
+        if (updateFloatLabel(labelThatHasChanged,
+            -FLT_MAX, FLT_MAX, processor->randomThreshRange[0], &newVal))
+        {
+            // Force sanity here.
+            if (newVal < 0.1) newVal = 0.1;
+            if (newVal > 120) newVal = 120;
+            averageTimeEditable->setText(String(newVal), dontSendNotification);
+
+            processor->setParameter(CrossingDetector::AVERAGE_DECAY_TIME, newVal);
         }
     }
 
@@ -1023,6 +1108,13 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
         processor->setParameter(CrossingDetector::USE_BUF_END_MASK, static_cast<float>(bufMaskOn));
     }
 
+    // Buttons for debugging tattles
+    else if (button == tattleThreshButton)
+    {
+        bool wantTattle = button->getToggleState();
+        processor->setParameter(CrossingDetector::WANT_TATTLE_THRESH, static_cast<float>(wantTattle));
+    }
+
     // Threshold radio buttons
     else if (button == constantThreshButton)
     {
@@ -1032,6 +1124,17 @@ void CrossingDetectorEditor::buttonEvent(Button* button)
             thresholdEditable->setEnabled(true);
             processor->setParameter(CrossingDetector::THRESH_TYPE,
                 static_cast<float>(CrossingDetector::CONSTANT));
+        }
+    }
+    else if (button == averageThreshButton)
+    {
+        bool on = button->getToggleState();
+        averageTimeEditable->setEnabled(on);
+        if (on)
+        {
+            thresholdEditable->setEnabled(true);
+            processor->setParameter(CrossingDetector::THRESH_TYPE,
+                static_cast<float>(CrossingDetector::AVERAGE));
         }
     }
     else if (button == adaptiveThreshButton)
@@ -1112,7 +1215,11 @@ void CrossingDetectorEditor::updateSettings()
         for (int chan = 1; chan <= numInputs; ++chan)
         {
             // using 1-based ids since 0 is reserved for "nothing selected"
-            inputBox->addItem(String(chan), chan);
+            // Build a descriptive name ("number:name").
+            const DataChannel* chanInfo = processor->getDataChannel(chan - 1);
+            const String& chanName = chanInfo->getName();
+            String newName = String(chan) + ":" + chanName;
+            inputBox->addItem(newName, chan);
             if (currInputId == chan)
             {
                 inputBox->setSelectedId(chan, dontSendNotification);
@@ -1250,6 +1357,7 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
     // threshold
     paramValues->setAttribute("thresholdType", processor->thresholdType);
     paramValues->setAttribute("threshold", processor->constantThresh);
+    paramValues->setAttribute("averageDecaySeconds", averageTimeEditable->getText());
     paramValues->setAttribute("indicatorChanName", processor->indicatorChanName);
     paramValues->setAttribute("indicatorTarget", targetEditable->getText());
     paramValues->setAttribute("useIndicatorRange", indicatorRangeButton->getToggleState());
@@ -1283,6 +1391,9 @@ void CrossingDetectorEditor::saveCustomParameters(XmlElement* xml)
     // timing
     paramValues->setAttribute("durationMS", durationEditable->getText());
     paramValues->setAttribute("timeoutMS", timeoutEditable->getText());
+
+    // debug tattles
+    paramValues->setAttribute("bTattleThresh", tattleThreshButton->getToggleState());
 }
 
 void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
@@ -1321,6 +1432,7 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         thresholdEditable->setText(xmlNode->getStringAttribute("threshold", thresholdEditable->getText()), sendNotificationSync);
         minThreshEditable->setText(xmlNode->getStringAttribute("minThresh", minThreshEditable->getText()), sendNotificationSync);
         maxThreshEditable->setText(xmlNode->getStringAttribute("maxThresh", maxThreshEditable->getText()), sendNotificationSync);
+        averageTimeEditable->setText(xmlNode->getStringAttribute("averageDecaySeconds", averageTimeEditable->getText()), sendNotificationSync);
 		
 		int thresholdChanId = xmlNode->getIntAttribute("thresholdChanId", channelThreshBox->getSelectedId());
 		if (channelThreshBox->indexOfItemId(thresholdChanId) >= 0) // guard against different # of channels
@@ -1343,6 +1455,10 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         {
         case CrossingDetector::CONSTANT:
             constantThreshButton->setToggleState(true, sendNotificationSync);
+            break;
+
+        case CrossingDetector::AVERAGE:
+            averageThreshButton->setToggleState(true, sendNotificationSync);
             break;
 
         case CrossingDetector::ADAPTIVE:
@@ -1376,6 +1492,9 @@ void CrossingDetectorEditor::loadCustomParameters(XmlElement* xml)
         // timing
         durationEditable->setText(xmlNode->getStringAttribute("durationMS", durationEditable->getText()), sendNotificationSync);
         timeoutEditable->setText(xmlNode->getStringAttribute("timeoutMS", timeoutEditable->getText()), sendNotificationSync);
+
+        // debug tattles
+        tattleThreshButton->setToggleState(xmlNode->getBoolAttribute("bTattleThresh", tattleThreshButton->getToggleState()), sendNotificationSync);
 
         // backwards compatibility
         // old duration/timeout in samples, convert to ms.

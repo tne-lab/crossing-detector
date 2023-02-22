@@ -29,7 +29,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 CrossingDetector::CrossingDetector()
     : GenericProcessor      ("Crossing Detector")
     , thresholdType         (CONSTANT)
+    , wantTattleThreshold   (false)
     , constantThresh        (0.0f)
+    , averageDecaySeconds   (5.0f)
+    , averageNewSampWeight  (0.0f)
+    , averageNeedsInit      (true)
+    , runningSquaredAverage (0.0f)
     , indicatorChan         (-1)
     , indicatorTarget       (180.0f)
     , useIndicatorRange     (true)
@@ -66,6 +71,9 @@ CrossingDetector::CrossingDetector()
     , thresholdHistory      (pastSpan + futureSpan + 2)
     , eventChannelPtr       (nullptr)
     , turnoffEvent          (nullptr)
+#if TATTLE_ON_NEW_CHANNEL
+    , tattleChannelPtr      (nullptr)
+#endif
 {
     setProcessorType(PROCESSOR_TYPE_FILTER);
 
@@ -136,6 +144,30 @@ void CrossingDetector::createEventChannels()
     eventChannelPtr = eventChannelArray.add(chan);
 }
 
+#if TATTLE_ON_NEW_CHANNEL
+// FIXME - This doesn't work properly. It detects but we don't get output.
+// Implementation was cribbed from the "Phase Calculator" plugin.
+void CrossingDetector::updateSettings()
+{
+    // NOTE - The "createDataChannels()" method is only called for sources. We aren't a source.
+    // So, we have to do the equivalent here, and manually adjust "settings.numOutputs".
+
+    // Force sanity.
+    tattleChannelPtr = nullptr;
+
+    // Add a tattle channel if and only if we want tattling.
+    if (wantTattleThreshold)
+    {
+        tattleChannelPtr = new DataChannel(DataChannel::HEADSTAGE_CHANNEL, getSampleRate(), this);
+        tattleChannelPtr->setName("Threshold");
+        dataChannelArray.add(tattleChannelPtr);
+    }
+
+    // Manually update the channel count.
+    settings.numOutputs = dataChannelArray.size();
+}
+#endif
+
 void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
 {
     if (inputChannel < 0 || inputChannel >= continuousBuffer.getNumChannels() || !eventChannelPtr)
@@ -185,6 +217,13 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         return index < 0 ? thresholdHistory[index] : pThresh[index];
     };
 
+    // Initialize the running average if we need to.
+    if (averageNeedsInit)
+    {
+        averageNeedsInit = false;
+        runningSquaredAverage = inputAt(0) * inputAt(0);
+    }
+
     // loop over current buffer and add events for newly detected crossings
     for (int i = 0; i < nSamples; ++i)
     {
@@ -192,12 +231,22 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         bool currPosOn = posOn;
         bool currNegOn = negOn;
 
+        // Update the running average whether or not we're using it.
+        // Bog standard first-order exponential smoothing of the squared amplitude.
+        runningSquaredAverage *= (1.0 - averageNewSampWeight);
+        runningSquaredAverage += averageNewSampWeight * inputAt(i) * inputAt(i);
+
         // get and save threshold for this sample
         switch (currThreshType)
         {
         case CONSTANT:
         case ADAPTIVE: // adaptive threshold process updates constantThresh
             pThresh[i] = constantThresh;
+            break;
+
+        case AVERAGE:
+            // Threshold is a multiplier for the RMS average.
+            pThresh[i] = constantThresh * sqrt(runningSquaredAverage);
             break;
 
         case RANDOM:
@@ -281,6 +330,30 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
 
     // shift sampToReenable so it is relative to the next buffer
     sampToReenable = jmax(0, sampToReenable - nSamples);
+
+
+    // Tattle the threshold values, if desired.
+
+    int tattleChannelNum = -1;
+    if (wantTattleThreshold)
+    {
+#if TATTLE_ON_NEW_CHANNEL
+        if (tattleChannelPtr != nullptr)
+            tattleChannelNum = dataChannelArray.indexOf(tattleChannelPtr);
+#else
+        tattleChannelNum = inputChannel;
+#endif
+    }
+
+    if (tattleChannelNum >= 0)
+    {
+        float *wpThresh = continuousBuffer.getWritePointer(tattleChannelNum);
+        if (wpThresh != nullptr)
+        {
+            for (int i = 0; i < nSamples; ++i)
+                wpThresh[i] = pThresh[i];
+        }
+    }
 }
 
 // all new values should be validated before this function is called!
@@ -300,6 +373,11 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         case ADAPTIVE:
             thresholdVal = constantThresh;
             restartAdaptiveThreshold();
+            break;
+
+        case AVERAGE:
+            thresholdVal = constantThresh;
+            // We don't need to reinitialize the average; keep the old value.
             break;
 
         case RANDOM:
@@ -417,9 +495,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         static_cast<CrossingDetectorEditor*>(getEditor())->updateChannelThreshBox();
 
         // update signal chain, since the event channel metadata has to get updated.
-        // pass nullptr instead of a pointer to the editor so that it just updates
-        // settings and doesn't try to update the visible editors.
-        //CoreServices::updateSignalChain(nullptr);
+        //CoreServices::updateSignalChain(editor);
         break;
 
     case EVENT_CHAN:
@@ -489,7 +565,7 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         break;
 
     case JUMP_LIMIT_SLEEP:
-		jumpLimitSleep = newValue * getDataChannel(0)->getSampleRate();
+        jumpLimitSleep = newValue * getSampleRate();
         break;
 
     case USE_BUF_END_MASK:
@@ -500,6 +576,20 @@ void CrossingDetector::setParameter(int parameterIndex, float newValue)
         bufferEndMaskMs = static_cast<int>(newValue);
         updateSampleRateDependentValues();
         break;
+
+    case AVERAGE_DECAY_TIME:
+        averageDecaySeconds = newValue;
+        updateSampleRateDependentValues();
+        // We don't need to reinitialize the average; keep the old value.
+        break;
+
+    case WANT_TATTLE_THRESH:
+        wantTattleThreshold = newValue ? true : false;
+#if TATTLE_ON_NEW_CHANNEL
+        // Force a signal chain update, since the number of output channels may have changed.
+        CoreServices::updateSignalChain(editor);
+#endif
+        break;
     }
 }
 
@@ -508,6 +598,7 @@ bool CrossingDetector::enable()
     jumpLimitElapsed = jumpLimitSleep;
     updateSampleRateDependentValues();
     restartAdaptiveThreshold();
+    averageNeedsInit = true;
     return isEnabled;
 }
 
@@ -518,6 +609,19 @@ bool CrossingDetector::disable()
     // cancel any pending turning-off
     turnoffEvent = nullptr;
     return true;
+}
+
+float CrossingDetector::getSampleRate(int subProcessorIdx) const
+{
+    float sampleRate = getDefaultSampleRate();
+
+    const DataChannel* refChan = getDataChannel(inputChannel);
+    if (refChan == nullptr)
+        refChan = getDataChannel(0);
+    if (refChan != nullptr)
+        sampleRate = refChan->getSampleRate();
+
+    return sampleRate;
 }
 
 // ----- private functions ------
@@ -779,11 +883,13 @@ void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
 
 void CrossingDetector::updateSampleRateDependentValues()
 {
-    const DataChannel* inChan = getDataChannel(inputChannel);
-    if (inChan == nullptr) { return; }
-    float sampleRate = inChan->getSampleRate();
+    float sampleRate = getSampleRate();
 
     eventDurationSamp = int(std::ceil(eventDuration * sampleRate / 1000.0f));
     timeoutSamp = int(std::floor(timeout * sampleRate / 1000.0f));
     bufferEndMaskSamp = int(std::ceil(bufferEndMaskMs * sampleRate / 1000.0f));
+
+    if (averageDecaySeconds < 0.1)
+        averageDecaySeconds = 0.1;
+    averageNewSampWeight = 1.0 / (averageDecaySeconds * sampleRate);
 }
