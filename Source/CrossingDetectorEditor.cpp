@@ -53,6 +53,11 @@ void CustomButton::resized()
     button->setBounds(0, 0, 70, 18);
 }
 
+void CrossingDetectorEditor::updateSettings()
+{
+    timeoutEditable->setText(getProcessor()->getParameter("Timeout_ms")->getValueAsString(), dontSendNotification);
+}
+
 
 CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode)
     : VisualizerEditor(parentNode, "Crossing Detector", 205)

@@ -642,7 +642,7 @@ void CrossingDetector::parameterValueChanged(Parameter* param)
         static_cast<CrossingDetectorEditor*>(getEditor())->updateVisualizer();
 
         // // update signal chain, since the event channel metadata has to get updated.
-        // CoreServices::updateSignalChain(getEditor());
+         CoreServices::updateSignalChain(getEditor());
     }
     else if (param->getName().equalsIgnoreCase("TTL_OUT"))
     {

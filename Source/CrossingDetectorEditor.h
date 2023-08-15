@@ -74,6 +74,8 @@ public:
 
     Visualizer* createNewCanvas() override;
 
+    void updateSettings() override;
+
     void setThresholdLabelEnabled(bool enabled);
 
 private:
