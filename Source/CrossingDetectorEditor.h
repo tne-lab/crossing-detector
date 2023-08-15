@@ -66,6 +66,7 @@ private:
 
 class CrossingDetectorEditor 
     : public VisualizerEditor
+    , public Label::Listener
 {
 public:
     CrossingDetectorEditor(GenericProcessor* parentNode);
@@ -73,12 +74,41 @@ public:
 
     Visualizer* createNewCanvas() override;
 
+    void setThresholdLabelEnabled(bool enabled);
+
 private:
     ScopedPointer<Label> threshLabel;
     ScopedPointer<Label> threshValue;
+    ScopedPointer<Label> constantThreshValue;
+    ScopedPointer<Label> acrossLabel;
+
+    // bottom row (timeout)
+    ScopedPointer<Label> timeoutLabel;
+    ScopedPointer<Label> timeoutEditable;
+    ScopedPointer<Label> timeoutUnitLabel;
+
 
     void selectedStreamHasChanged() override;
-    
+
+    Label* createEditable(const String& name, const String& initialValue,
+        const String& tooltip, juce::Rectangle<int> bounds);
+
+    Label* createLabel(const String& name, const String& text,
+        juce::Rectangle<int> bounds);
+
+    void labelTextChanged(Label* labelThatHasChanged) override;
+
+
+    /* Utilities for parsing entered values
+    *  Ouput whether the label contained a valid input; if so, it is stored in *out
+    *  and the label is updated with the parsed input. Otherwise, the label is reset
+    *  to defaultValue.
+    */
+    static bool updateIntLabel(Label* label, int min, int max,
+        int defaultValue, int* out);
+    static bool updateFloatLabel(Label* label, float min, float max,
+        float defaultValue, float* out);
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetectorEditor);
 };
 

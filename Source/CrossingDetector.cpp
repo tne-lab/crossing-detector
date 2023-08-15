@@ -32,8 +32,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 CrossingDetectorSettings::CrossingDetectorSettings() :
     inputChannel(0),
     eventChannel(0),
+    indicatorChannel(-1),
     thresholdChannel(0),
     sampleRate(0.0f),
+    averageNewSampWeight(0.0f),
     eventChannelPtr(nullptr),
     turnoffEvent(nullptr)
 {
@@ -46,20 +48,24 @@ CrossingDetectorSettings::CrossingDetectorSettings() :
         "Monitored voltage threshold", "crossing.threshold"));
     eventMetadataDescriptors.add(new MetadataDescriptor(MetadataDescriptor::UINT8, 1, "Direction",
         "Direction of crossing: 1 = rising, 0 = falling", "crossing.direction"));
+    eventMetadataDescriptors.add(new MetadataDescriptor(MetadataDescriptor::DOUBLE, 1, "Learning rate",
+        "Learning rate of adaptive algorithm", "crossing.learning_rate"));
 }
 
 void CrossingDetectorSettings::updateSampleRateDependentValues(
                                 int eventDuration,
                                 int timeout,
-                                int bufferEndMask)
+                                int bufferEndMask,
+                                float averageDecaySeconds)
 {
     eventDurationSamp = int(std::ceil(eventDuration * sampleRate / 1000.0f));
     timeoutSamp = int(std::floor(timeout * sampleRate / 1000.0f));
     bufferEndMaskSamp = int(std::ceil(bufferEndMask * sampleRate / 1000.0f));
+    averageNewSampWeight = 1.0 / (averageDecaySeconds * sampleRate);
 }
 
 TTLEventPtr CrossingDetectorSettings::createEvent(juce::int64 bufferTs, int crossingOffset,
-    int bufferLength, float threshold, float crossingLevel, bool eventState)
+    int bufferLength, float threshold, float crossingLevel, bool eventState, double learningRate)
 {
     // Construct metadata array
     // The order has to match the order the descriptors are stored in createEventChannels.
@@ -81,6 +87,10 @@ TTLEventPtr CrossingDetectorSettings::createEvent(juce::int64 bufferTs, int cros
     MetadataValue* directionVal = new MetadataValue(*eventMetadataDescriptors[mdInd++]);
     directionVal->setValue(static_cast<juce::uint8>(crossingLevel > threshold));
     mdArray.add(directionVal);
+
+    MetadataValue* learningRateVal = new MetadataValue(*eventMetadataDescriptors[mdInd++]);
+    learningRateVal->setValue(learningRate);
+    mdArray.add(learningRateVal);
 
     // Create event
     if(eventState)
@@ -110,10 +120,22 @@ CrossingDetector::CrossingDetector()
     : GenericProcessor      ("Crossing Detector")
     , thresholdType         (CONSTANT)
     , constantThresh        (0.0f)
+    , averageDecaySeconds   (5.0f)
+    , averageNeedsInit      (true)
+    , runningSquaredAverage (0.0f)
     , selectedStreamId      (0)
+    , indicatorTarget(180.0f)
+    , useIndicatorRange(true)
+    , startLearningRate(0.02)
+    , minLearningRate(0.005)
+    , decayRate(0.00003)
+    , currLRDivisor(1.0)
+    , adaptThreshPaused(false)
+    , useAdaptThreshRange(true)
+    , currLearningRate(startLearningRate)
     , posOn                 (true)
     , negOn                 (false)
-    , eventDuration         (100)
+    , eventDuration         (5)
     , timeout               (1000)
     , useBufferEndMask      (false)
     , bufferEndMaskMs       (3)
@@ -132,6 +154,10 @@ CrossingDetector::CrossingDetector()
 {
     setProcessorType(Plugin::Processor::FILTER);
 
+    indicatorRange[0] = -180.0f;
+    indicatorRange[1] = 180.0f;
+    adaptThreshRange[0] = -180.0f;
+    adaptThreshRange[1] = 180.0f;
     randomThreshRange[0] = -180.0f;
     randomThreshRange[1] = 180.0f;
     thresholdVal = constantThresh;
@@ -151,11 +177,14 @@ CrossingDetector::CrossingDetector()
     addIntParameter(Parameter::GLOBAL_SCOPE, "Timeout_ms", "Minimum length of time between consecutive events",
                     timeout, 0, 100000);
 
-    addIntParameter(Parameter::GLOBAL_SCOPE, "threshold_type", "Type of Threshold to use", thresholdType, 0, 2);
+    addIntParameter(Parameter::GLOBAL_SCOPE, "threshold_type", "Type of Threshold to use", thresholdType, 0, 5);
 
     addFloatParameter(Parameter::GLOBAL_SCOPE, "constant_threshold", "Constant threshold value",
                     constantThresh, -FLT_MAX, FLT_MAX, 0.1f);
     
+
+    addFloatParameter(Parameter::GLOBAL_SCOPE, "avg_decay_seconds", "RMS Average Duration", averageDecaySeconds, 0, FLT_MAX, 0.01f);
+
     addFloatParameter(Parameter::GLOBAL_SCOPE, "min_random_threshold", "Minimum random threshold value",
                     randomThreshRange[0], -10000.0f, 10000.0f, 0.1f);
 
@@ -194,6 +223,32 @@ CrossingDetector::CrossingDetector()
                     bufferEndMaskMs, 0, INT_MAX);
 
     addIntParameter(Parameter::GLOBAL_SCOPE, "event_duration", "Event Duration", eventDuration, 0, INT_MAX);
+    
+    // Adaptive threshold
+    addIntParameter(Parameter::STREAM_SCOPE, "indicator_channel", "Index of monitored event channel", -1, -1, INT_MAX);
+
+    addFloatParameter(Parameter::GLOBAL_SCOPE, "indicator_target", "Target indicator", indicatorTarget, FLT_MIN, FLT_MAX, 0.1f);
+
+    addBooleanParameter(Parameter::GLOBAL_SCOPE, "use_indicator_range", "Whether to use circular range", useIndicatorRange);
+
+    addFloatParameter(Parameter::GLOBAL_SCOPE, "indicator_range_start", "Start of indicator range", indicatorRange[0], FLT_MIN, FLT_MAX, 0.1f);
+
+    addFloatParameter(Parameter::GLOBAL_SCOPE, "indicator_range_end", "Start of indicator range", indicatorRange[1], FLT_MIN, FLT_MAX, 0.1f);
+
+    addFloatParameter(Parameter::GLOBAL_SCOPE, "start_learning_rate", "Initial learning rate", startLearningRate, FLT_MIN, FLT_MAX, 0.001f);
+
+    addFloatParameter(Parameter::GLOBAL_SCOPE, "min_learning_rate", "Minimum learning rate", minLearningRate, FLT_MIN, FLT_MAX, 0.0001f);
+
+    addFloatParameter(Parameter::GLOBAL_SCOPE, "decay_rate", "Decay rate", decayRate, FLT_MIN, FLT_MAX, 0.00001f);
+
+    addBooleanParameter(Parameter::GLOBAL_SCOPE, "adapt_threshold_paused", "Whether the adaptive threshold is paused", adaptThreshPaused);
+
+    addBooleanParameter(Parameter::GLOBAL_SCOPE, "use_adapt_threshold_range", "Whether to keep the threshold within the range", useAdaptThreshRange);
+
+    addFloatParameter(Parameter::GLOBAL_SCOPE, "adapt_threshold_range_start", "Start of adaptive threshold range", 
+        adaptThreshRange[0], FLT_MIN, FLT_MAX, 0.1f);
+
+    addFloatParameter(Parameter::GLOBAL_SCOPE, "adapt_threshold_range_end", "End of adaptive threshold range", adaptThreshRange[1], FLT_MIN, FLT_MAX, 0.1f);
 }
 
 CrossingDetector::~CrossingDetector() {}
@@ -249,7 +304,20 @@ void CrossingDetector::updateSettings()
     parameterValueChanged(getParameter("jump_limit_sleep"));
     parameterValueChanged(getParameter("buffer_end_mask"));
     parameterValueChanged(getParameter("event_duration"));
+    parameterValueChanged(getParameter("avg_decay_seconds"));
 
+    parameterValueChanged(getParameter("indicator_channel"));
+    parameterValueChanged(getParameter("indicator_target"));
+    parameterValueChanged(getParameter("use_indicator_range"));
+    parameterValueChanged(getParameter("indicator_range_start"));
+    parameterValueChanged(getParameter("indicator_range_end"));
+    parameterValueChanged(getParameter("start_learning_rate"));
+    parameterValueChanged(getParameter("min_learning_rate"));
+    parameterValueChanged(getParameter("decay_rate"));
+    parameterValueChanged(getParameter("adapt_threshold_paused"));
+    parameterValueChanged(getParameter("use_adapt_threshold_range"));
+    parameterValueChanged(getParameter("adapt_threshold_range_start"));
+    parameterValueChanged(getParameter("adapt_threshold_range_end"));
 }
 
 void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
@@ -261,6 +329,11 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
         if ((*stream)["enable_stream"] && stream->getStreamId() == selectedStreamId)
         {
             CrossingDetectorSettings* settingsModule = settings[stream->getStreamId()];
+            auto streamId = stream->getStreamId();
+            if (settings[streamId]->indicatorChannel > -1)
+            {
+                checkForEvents();
+            }
 
             if (settingsModule->inputChannel < 0
                 || settingsModule->inputChannel >= continuousBuffer.getNumChannels()
@@ -309,6 +382,12 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
                 return index < 0 ? thresholdHistory[index] : pThresh[index];
             };
 
+            if (averageNeedsInit)
+            {
+                averageNeedsInit = false;
+                runningSquaredAverage = inputAt(0) * inputAt(0);
+            }
+
             // loop over current buffer and add events for newly detected crossings
             for (int i = 0; i < nSamples; ++i)
             {
@@ -316,11 +395,20 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
                 bool currPosOn = posOn;
                 bool currNegOn = negOn;
 
+                // Update the running average whether or not we're using it.
+                // Bog standard first-order exponential smoothing of the squared amplitude.
+                runningSquaredAverage *= (1.0 - settingsModule->averageNewSampWeight);
+                runningSquaredAverage += settingsModule->averageNewSampWeight * inputAt(i) * inputAt(i);
+
                 // get and save threshold for this sample
                 switch (currThreshType)
                 {
                 case CONSTANT:
+                case ADAPTIVE:
                     pThresh[i] = constantThresh;
+                    break;
+                case AVERAGE:
+                    pThresh[i] = constantThresh * sqrt(runningSquaredAverage);
                     break;
                 case RANDOM:
                     pThresh[i] = currRandomThresh;
@@ -381,15 +469,17 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
                 if (currPosOn && shouldTrigger(true, preVal, postVal, preThresh, postThresh) ||
                     currNegOn && shouldTrigger(false, preVal, postVal, preThresh, postThresh))
                 {
+
+                    double eventLearningRate = thresholdType == ADAPTIVE ? currLearningRate : 0;
                     // create and add ON event
                     TTLEventPtr onEvent = settingsModule->
-                        createEvent(startTs, indCross, nSamples, postThresh, postVal, true);
+                        createEvent(startTs, indCross, nSamples, postThresh, postVal, true, eventLearningRate);
                     addEvent(onEvent, std::max(indCross, 0));
 
                     // create OFF event
                     int sampleNumOff = std::max(indCross, 0) + settingsModule->eventDurationSamp;
                     TTLEventPtr offEvent = settingsModule->
-                        createEvent(startTs, indCross, nSamples, postThresh, postVal, false);
+                        createEvent(startTs, indCross, nSamples, postThresh, postVal, false, eventLearningRate);
                     
                     // Add or schedule turning-off event
                     // We don't care whether there are other turning-offs scheduled to occur either in
@@ -430,6 +520,49 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
     }
 }
 
+
+void CrossingDetector::handleTTLEvent(TTLEventPtr event)
+{
+    const EventChannel* eventChanInfo = event->getChannelInfo();
+    const EventChannel* indChanInfo = getEventChannel(settings[selectedStreamId]->indicatorChannel);
+
+    if (eventChanInfo == indChanInfo && thresholdType == ADAPTIVE && !adaptThreshPaused)
+    {
+        int metadataCount = event->getMetadataValueCount();
+
+        if (metadataCount > 0)
+        {
+
+            for (int mIndex = 0; mIndex < event->getMetadataValueCount(); mIndex++)
+            {
+                const MetadataValue* metadataValue = event->getMetadataValue(0);
+
+                if (metadataValue->getDataType() == MetadataDescriptor::DOUBLE)
+                {
+                    double eventValue;
+                    metadataValue->getValue(&eventValue);
+
+                    float eventErr = errorFromTarget(eventValue);
+
+                    currLRDivisor += decayRate;
+                    double currDecayingLR = currLearningRate - currMinLearningRate;
+                    currLearningRate = currDecayingLR / currLRDivisor + currMinLearningRate;
+
+                    // update threshold
+                    constantThresh -= currLearningRate * eventErr;
+                    if (useAdaptThreshRange)
+                    {
+                        constantThresh = toThresholdInRange(constantThresh);
+                    }
+                    thresholdVal = constantThresh;
+
+                    break;
+                }
+            }
+        }
+    }
+}
+
 void CrossingDetector::parameterValueChanged(Parameter* param)
 {
     LOGD("[Crossing Detector] Parameter value changed: ", param->getName());
@@ -443,6 +576,11 @@ void CrossingDetector::parameterValueChanged(Parameter* param)
                 thresholdVal = constantThresh;
                 break;
 
+            case ADAPTIVE:
+                thresholdVal = constantThresh;
+                restartAdaptiveThreshold();
+                break;
+
             case RANDOM:
                 // get new random threshold
                 currRandomThresh = nextRandomThresh();
@@ -452,15 +590,15 @@ void CrossingDetector::parameterValueChanged(Parameter* param)
             case CHANNEL:
                 thresholdVal = toChannelThreshString(settings[selectedStreamId]->thresholdChannel);
                 break;
+
+            case AVERAGE:
+                thresholdVal = constantThresh;
+                break;
         }
     }
     else if (param->getName().equalsIgnoreCase("constant_threshold"))
     {
         constantThresh = (float)param->getValue();
-        if (thresholdType == CONSTANT)
-        {
-            thresholdVal = constantThresh;
-        }
     }
     else if (param->getName().equalsIgnoreCase("min_random_threshold"))
     {
@@ -523,7 +661,7 @@ void CrossingDetector::parameterValueChanged(Parameter* param)
         eventDuration = (int)param->getValue();
         for (auto stream : getDataStreams())
         {
-            settings[stream->getStreamId()]->updateSampleRateDependentValues(eventDuration, timeout, bufferEndMaskMs);
+            settings[stream->getStreamId()]->updateSampleRateDependentValues(eventDuration, timeout, bufferEndMaskMs, averageDecaySeconds);
         }
     }
     else if (param->getName().equalsIgnoreCase("Timeout_ms"))
@@ -531,7 +669,7 @@ void CrossingDetector::parameterValueChanged(Parameter* param)
         timeout = (int)param->getValue();
         for (auto stream : getDataStreams())
         {
-            settings[stream->getStreamId()]->updateSampleRateDependentValues(eventDuration, timeout, bufferEndMaskMs);
+            settings[stream->getStreamId()]->updateSampleRateDependentValues(eventDuration, timeout, bufferEndMaskMs, averageDecaySeconds);
         }
     }
     else if (param->getName().equalsIgnoreCase("past_span"))
@@ -591,10 +729,74 @@ void CrossingDetector::parameterValueChanged(Parameter* param)
         bufferEndMaskMs = (int)param->getValue();
         for (auto stream : getDataStreams())
         {
-            settings[stream->getStreamId()]->updateSampleRateDependentValues(eventDuration, timeout, bufferEndMaskMs);
+            settings[stream->getStreamId()]->updateSampleRateDependentValues(eventDuration, timeout, bufferEndMaskMs, averageDecaySeconds);
         }
     }
-    
+    else if (param->getName().equalsIgnoreCase("indicator_channel"))
+    {
+        auto streamId = param->getStreamId();
+        int value = param->getValue();
+        auto streamSettings = settings[streamId];
+
+        if (streamId == 0 || streamSettings == nullptr)
+        {
+            return;
+        }
+
+        if (value > -1 && value < getTotalEventChannels())
+        {
+            settings[streamId]->indicatorChannel = value;
+        }
+        else
+        {
+            
+            settings[streamId]->indicatorChannel = -1;
+        }
+    }
+    else if (param->getName().equalsIgnoreCase("indicator_target"))
+    {
+        indicatorTarget = (float)param->getValue();
+    }
+    else if (param->getName().equalsIgnoreCase("use_indicator_range"))
+    {
+        useIndicatorRange = (bool)param->getValue();
+    }
+    else if (param->getName().equalsIgnoreCase("indicator_range_start"))
+    {
+        indicatorRange[0] = (float)param->getValue();
+    }
+    else if (param->getName().equalsIgnoreCase("indicator_range_end"))
+    {
+        indicatorRange[1] = (float)param->getValue();
+    }
+    else if (param->getName().equalsIgnoreCase("adapt_threshold_paused"))
+    {
+        adaptThreshPaused = (bool)param->getValue();
+    }
+    else if (param->getName().equalsIgnoreCase("start_learning_rate"))
+    {
+        startLearningRate = (double)param->getValue();
+    }
+    else if (param->getName().equalsIgnoreCase("min_learning_rate"))
+    {
+        minLearningRate = (double)param->getValue();
+    }
+    else if (param->getName().equalsIgnoreCase("decay_rate"))
+    {
+        decayRate = (double)param->getValue();
+    }
+    else if (param->getName().equalsIgnoreCase("use_adapt_threshold_range"))
+    {
+        useAdaptThreshRange = (bool)param->getValue();
+    }
+    else if (param->getName().equalsIgnoreCase("adapt_threshold_range_start"))
+    {
+        adaptThreshRange[0] = (float)param->getValue();
+    }
+    else if (param->getName().equalsIgnoreCase("adapt_threshold_range_end"))
+    {
+        adaptThreshRange[1] = (float)param->getValue();
+    }
 }
 
 
@@ -605,7 +807,7 @@ bool CrossingDetector::startAcquisition()
     for(auto stream : getDataStreams())
     {
         settings[stream->getStreamId()]->
-            updateSampleRateDependentValues(eventDuration, timeout, bufferEndMaskMs);
+            updateSampleRateDependentValues(eventDuration, timeout, bufferEndMaskMs, averageDecaySeconds);
     }
 
     return isEnabled;
@@ -683,4 +885,67 @@ bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal
     bool futureSat = (direction ? futureSamplesAbove : futureSpan - futureSamplesAbove) >= futureSamplesNeeded;
     
     return preSat && postSat && pastSat && futureSat;
+}
+
+void CrossingDetector::restartAdaptiveThreshold()
+{
+    currLRDivisor = 1.0;
+    currLearningRate = startLearningRate;
+    currMinLearningRate = minLearningRate;
+}
+
+float CrossingDetector::errorFromTarget(float x) const
+{
+    if (useIndicatorRange)
+    {
+        float rangeSize = indicatorRange[1] - indicatorRange[0];
+        jassert(rangeSize >= 0);
+        float linearErr = x - indicatorTarget;
+        if (std::abs(linearErr) < rangeSize / 2)
+        {
+            return linearErr;
+        }
+        else
+        {
+            return linearErr > 0 ? linearErr - rangeSize : linearErr + rangeSize;
+        }
+    }
+    else
+    {
+        return x - indicatorTarget;
+    }
+}
+
+
+float CrossingDetector::toEquivalentInRange(float x, const float* range)
+{
+    if (!range)
+    {
+        jassertfalse;
+        return x;
+    }
+    float top = range[1], bottom = range[0];
+    if (x <= top && x >= bottom)
+    {
+        return x;
+    }
+    float rangeSize = top - bottom;
+    jassert(rangeSize >= 0);
+    if (rangeSize == 0)
+    {
+        return bottom;
+    }
+
+    float rem = fmod(x - bottom, rangeSize);
+    return rem > 0 ? bottom + rem : bottom + rem + rangeSize;
+}
+
+float CrossingDetector::toIndicatorInRange(float x) const
+{
+    return toEquivalentInRange(x, indicatorRange);
+}
+
+float CrossingDetector::toThresholdInRange(float x) const
+{
+    return toEquivalentInRange(x, adaptThreshRange);
 }

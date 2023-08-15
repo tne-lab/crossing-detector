@@ -24,8 +24,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef CROSSING_DETECTOR_H_INCLUDED
 #define CROSSING_DETECTOR_H_INCLUDED
 
-// FIXME - Debugging switch
-#define TATTLE_ON_NEW_CHANNEL 0
 
 #include <ProcessorHeaders.h>
 #include "CircularArray.h"
@@ -48,6 +46,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /** Holds settings for one stream's crossing detector */
 class CrossingDetectorSettings
 {
+    friend class CrossingDetectorCanvas;
 public:
     /** Constructor -- sets default values*/
     CrossingDetectorSettings();
@@ -56,7 +55,7 @@ public:
     ~CrossingDetectorSettings() { }
 
     /** Converts parameters specified in ms to samples, and updates the corresponding member variables. */
-    void updateSampleRateDependentValues(int eventDuration, int timeout, int bufferEndMask);
+    void updateSampleRateDependentValues(int eventDuration, int timeout, int bufferEndMask, float averageDecaySeconds);
 
     /* Crate a "turning-on" or "turning-off" event for a crossing.
      *  - bufferTs:       Timestamp of start of current buffer
@@ -64,14 +63,18 @@ public:
      *  - bufferLength:   Number of samples in current buffer
      *  - threshold:      Threshold at the time of the crossing
      *  - crossingLevel:  Level of signal at the first sample after the crossing
+     *  - learningRate:   Adaptive algorithm's learning rate, 0 if threshold is not adapative
      */
     TTLEventPtr createEvent(juce::int64 bufferTs, int crossingOffset, int bufferLength,
-        float threshold, float crossingLevel, bool eventState);
+        float threshold, float crossingLevel, bool eventState, double learningRate);
 
     /** Parameters */
 
     int inputChannel; //Index of the inut channel
     int eventChannel;
+    
+    // Receive custom TTL events. Generally from phase calculator indicating current phase
+    int indicatorChannel;
 
     // if using channel threshold:
     int thresholdChannel;
@@ -80,14 +83,16 @@ public:
     int eventDurationSamp;
     int timeoutSamp;
     int bufferEndMaskSamp;
+    float averageNewSampWeight;
 
+    // used to send crossing events
     EventChannel* eventChannelPtr;
     MetadataDescriptorArray eventMetadataDescriptors;
     TTLEventPtr turnoffEvent; // holds a turnoff event that must be added in a later buffer
 };
 
 
-enum ThresholdType { CONSTANT = 0, RANDOM, CHANNEL, NUM_THRESHOLDS };
+enum ThresholdType { CONSTANT = 0, RANDOM, CHANNEL, NUM_THRESHOLDS, AVERAGE, ADAPTIVE };
 
 class CrossingDetector : public GenericProcessor
 {
@@ -108,6 +113,8 @@ public:
     bool startAcquisition() override;
     bool stopAcquisition() override;
 
+    void handleTTLEvent(TTLEventPtr event) override;
+
     /** Get the current selected stream */
     juce::uint16 getSelectedStream() { return selectedStreamId; }
 
@@ -118,6 +125,18 @@ public:
      * and that channel is not equal to the inputChannel.
      */
     bool isCompatibleWithInput(int chanNum);
+
+    static float toEquivalentInRange(float x, const float* range);
+
+    // toEquivalentInRange with range = indicatorRange
+    float toIndicatorInRange(float x) const;
+
+    // toEquivalentInRange with range = thresholdRange
+    float toThresholdInRange(float x) const;
+
+    void restartAdaptiveThreshold();
+
+    Value thresholdVal; // underlying value of the threshold label
     
 private:
 
@@ -142,25 +161,47 @@ private:
     bool shouldTrigger(bool direction, float preVal, float postVal, float preThresh, float postThresh);
 
 
+    /* Calculates the error of x from the indicatorTarget, taking the indicatorRange
+     * into account if enabled. That is, if useIndicatorRange is false, just calculates
+     * x - indicatorTarget; if useIndicatorRange is true, returns either this difference
+     * or the distance via wrapping around the circle, whichever has smaller absolute value.
+     */
+    float errorFromTarget(float x) const;
+
     // ------ PARAMETERS ------------
 
     StreamSettings<CrossingDetectorSettings> settings;
     ThresholdType thresholdType;
 
-    bool wantTattleThreshold;
-
     // if using constant threshold:
     float constantThresh;
+
+    // if using RMS average
+    float runningSquaredAverage;
 
     // if using random thresholds:
     float randomThreshRange[2];
     float currRandomThresh;
+
+    // if using adaptive threshold:
+    float indicatorTarget;
+    bool useIndicatorRange;
+    float indicatorRange[2];
+    double startLearningRate;
+    double minLearningRate;
+    double decayRate;
+    bool adaptThreshPaused;
+    bool useAdaptThreshRange;
+    float adaptThreshRange[2];
 
     bool posOn;
     bool negOn;
 
     int eventDuration; // in milliseconds
     int timeout; // milliseconds after an event onset when no more events are allowed.
+
+    // if using multiple-of-average threshold:
+    float averageDecaySeconds;
 
     bool useBufferEndMask;
     int bufferEndMaskMs;
@@ -199,16 +240,25 @@ private:
 
     Array<float> currThresholds;
 
-    Value thresholdVal; // underlying value of the threshold label
+    
+
+
+    /* If using adaptive threshold, learning rate evolves by this formula (LR = learning rate, MLR = min learning rate):
+     * LR_{t} = (LR_{t-1} - MLR) / divisor_{t} + MLR
+     * divisor_{0} = 1
+     * divisor_{t} = divisor_{t-1} + decay
+     */
+    double currLearningRate;
+    double currMinLearningRate;
+    double currLRDivisor;  // what the LR was last divided by
+
+    // whether RMS average value needs to be initialized
+    bool averageNeedsInit;
     
     Random rng; // for random thresholds
 
     // Selected stream's ID
     juce::uint16 selectedStreamId;
-
-#if TATTLE_ON_NEW_CHANNEL
-    DataChannel *tattleChannelPtr;
-#endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetector);
 };

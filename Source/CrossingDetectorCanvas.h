@@ -31,7 +31,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*
 Canvas/visualizer contains:
 - Threshold type selection - constant, rms average, adaptive, random, or channel (with parameters)
-- Threshold tattle enable/disable
 - Jump limiting toggle and max jump box
 - Voting settings (pre/post event span and strictness)
 - Event duration control
@@ -95,11 +94,41 @@ public:
     void labelTextChanged(Label* labelThatHasChanged) override;
     void buttonClicked(Button* button) override;
 
+
+
+    /* Update a Component that takes an Expression and sets the corresponding parameter.
+ * Returns the new float value. If the expression was not evaluated successfully,
+ * std::isfinite called on the return value will return false.
+ * @param paramToChange should be a String corresponding to a CrossingDetector parameter.
+ */
+    template<typename T>
+    float updateExpressionComponent(T* component, String& lastText, String paramToChange);
+
+
 private:
+    // Scope to be able to use "pi" in adaptive target range specification
+    class PiScope : public Expression::Scope
+    {
+        // copied from DSP library
+        const double doublePi = 3.1415926535897932384626433832795028841971;
+    public:
+        Expression getSymbolValue(const String& symbol) const override
+        {
+            if (symbol.equalsIgnoreCase("pi"))
+            {
+                return Expression(doublePi);
+            }
+            // to avoid exceptions, return a NaN instead to indicate a problem.
+            return Expression(NAN);
+        }
+    };
     ScopedPointer<Viewport> viewport;
     
     CrossingDetector* processor;
     CrossingDetectorEditor* editor;
+
+
+    float evalWithPiScope(const String& text, bool* simple);
 
     // Basic UI element creation methods. Always register "this" (the editor) as the listener,
     // but may specify a different Component in which to actually display the element.
@@ -120,6 +149,7 @@ private:
     
 
     void initializeOptionsPanel();
+    bool isValidIndicatorChan(const EventChannel* eventInfo);
 
     RadioButtonLookAndFeel rbLookAndFeel;
 
@@ -136,6 +166,43 @@ private:
 
     ScopedPointer<ToggleButton> constantThreshButton;
     ScopedPointer<Label> constantThreshValue;
+
+    ScopedPointer<ToggleButton> averageThreshButton;
+    ScopedPointer<Label> averageTimeLabel;
+    ScopedPointer<Label> averageTimeEditable;
+
+
+    // adaptive threshold
+    // row 1
+    ScopedPointer<ToggleButton> adaptiveThreshButton;
+    ScopedPointer<ComboBox> indicatorChanBox;
+    // row 2
+    ScopedPointer<Label> targetLabel;
+    ScopedPointer<Label> targetEditable;
+    String lastTargetEditableString;
+    ScopedPointer<ToggleButton> indicatorRangeButton;
+    ScopedPointer<ComboBox> indicatorRangeMinBox;
+    String lastIndicatorRangeMinString;
+    ScopedPointer<Label> indicatorRangeTo;
+    ScopedPointer<ComboBox> indicatorRangeMaxBox;
+    String lastIndicatorRangeMaxString;
+    // row 3
+    ScopedPointer<Label> learningRateLabel;
+    ScopedPointer<Label> learningRateEditable;
+    ScopedPointer<Label> minLearningRateLabel;
+    ScopedPointer<Label> minLearningRateEditable;
+    ScopedPointer<Label> decayRateLabel;
+    ScopedPointer<Label> decayRateEditable;
+    ScopedPointer<UtilityButton> restartButton;
+    ScopedPointer<UtilityButton> pauseButton;
+    // row 4
+    ScopedPointer<ToggleButton> threshRangeButton;
+    ScopedPointer<ComboBox> threshRangeMinBox;
+    String lastThreshRangeMinString;
+    ScopedPointer<Label> threshRangeTo;
+    ScopedPointer<ComboBox> threshRangeMaxBox;
+    String lastThreshRangeMaxString;
+
 
     // threshold randomization
     ScopedPointer<ToggleButton> randomizeButton;
