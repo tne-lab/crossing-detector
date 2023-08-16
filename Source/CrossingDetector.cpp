@@ -306,7 +306,6 @@ void CrossingDetector::updateSettings()
     parameterValueChanged(getParameter("event_duration"));
     parameterValueChanged(getParameter("avg_decay_seconds"));
 
-    parameterValueChanged(getParameter("indicator_channel"));
     parameterValueChanged(getParameter("indicator_target"));
     parameterValueChanged(getParameter("use_indicator_range"));
     parameterValueChanged(getParameter("indicator_range_start"));
