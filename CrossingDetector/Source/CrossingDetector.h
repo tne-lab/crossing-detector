@@ -45,6 +45,38 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * @see GenericProcessor
  */
 
+#include <iostream>
+#include <fstream>
+#include <chrono>
+#include <string>
+#include <iomanip>  // For std::setprecision
+
+
+
+class EventLogger {
+private:
+    std::string filename;
+    std::ofstream file;
+
+public:
+    EventLogger(const std::string& filename) : filename(filename) {
+        file.open(filename, std::ios::out);  // Open in write mode to overwrite
+        file << std::setprecision(15);  // Set high precision for floating-point numbers
+    }
+
+    ~EventLogger() {
+        file.close();
+    }
+
+    double log_event(const std::string& event_name) {
+        auto now = std::chrono::high_resolution_clock::now();
+        auto timestamp = std::chrono::duration<double>(now.time_since_epoch()).count();
+        file << event_name << "," << timestamp << std::endl;
+        file.flush();  // Flush the buffer to write immediately
+        return timestamp;
+    }
+};
+
 class CrossingDetector : public GenericProcessor
 {
     friend class CrossingDetectorEditor;
@@ -303,6 +335,8 @@ private:
 
     // full subprocessor ID of input channel (or 0 if none selected)
     juce::uint32 validSubProcFullID;
+
+    EventLogger eventLogger;
 
 #if TATTLE_ON_NEW_CHANNEL
     DataChannel *tattleChannelPtr;

@@ -71,6 +71,7 @@ CrossingDetector::CrossingDetector()
     , thresholdHistory      (pastSpan + futureSpan + 2)
     , eventChannelPtr       (nullptr)
     , turnoffEvent          (nullptr)
+    , eventLogger("xd_cpp_events")
 #if TATTLE_ON_NEW_CHANNEL
     , tattleChannelPtr      (nullptr)
 #endif
@@ -856,6 +857,8 @@ void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
     TTLEventPtr eventOn = TTLEvent::createTTLEvent(eventChannelPtr, eventTsOn,
         &ttlDataOn, sizeof(juce::uint8), mdArray, currEventChan);
     addEvent(eventChannelPtr, eventOn, sampleNumOn);
+
+    eventLogger.log_event("xd_ttl_trigger");
 
     juce::uint8 ttlDataOff = 0;
     int sampleNumOff = sampleNumOn + eventDurationSamp;
