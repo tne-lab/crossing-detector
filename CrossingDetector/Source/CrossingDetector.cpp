@@ -25,6 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CrossingDetectorEditor.h"
 
 #include <cmath> // for ceil, floor
+#include <string>  // for std::to_string
 
 CrossingDetector::CrossingDetector()
     : GenericProcessor      ("Crossing Detector")
@@ -71,7 +72,7 @@ CrossingDetector::CrossingDetector()
     , thresholdHistory      (pastSpan + futureSpan + 2)
     , eventChannelPtr       (nullptr)
     , turnoffEvent          (nullptr)
-    , eventLogger("xd_cpp_events")
+    , eventLogger           ()
 #if TATTLE_ON_NEW_CHANNEL
     , tattleChannelPtr      (nullptr)
 #endif
@@ -104,6 +105,9 @@ CrossingDetector::~CrossingDetector() {}
 AudioProcessorEditor* CrossingDetector::createEditor()
 {
     editor = new CrossingDetectorEditor(this);
+    int nodeId = getNodeId();
+    String filename = "xd_cpp_events_" + String(nodeId);
+    eventLogger.set_file(filename);
     return editor;
 }
 

@@ -55,24 +55,29 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 class EventLogger {
 private:
-    std::string filename;
     std::ofstream file;
 
 public:
-    EventLogger(const std::string& filename) : filename(filename) {
-        file.open(filename, std::ios::out);  // Open in write mode to overwrite
-        file << std::setprecision(15);  // Set high precision for floating-point numbers
+    EventLogger()  {
     }
 
     ~EventLogger() {
         file.close();
     }
 
+    void set_file(String name)
+    {
+        // Open in write mode to overwrite
+        std::cout << "Opening file:" << name << std::endl;
+        file.open(name.toStdString(), std::ios::out);
+        // Set high precision for floating-point numbers
+        file << std::setprecision(15);
+    }
+
     double log_event(const std::string& event_name) {
         auto now = std::chrono::high_resolution_clock::now();
-        auto timestamp = std::chrono::duration<double>(now.time_since_epoch()).count();
+        auto timestamp = std::chrono::nanoseconds(std::chrono::steady_clock::now().time_since_epoch()).count();
         file << event_name << "," << timestamp << std::endl;
-        file.flush();  // Flush the buffer to write immediately
         return timestamp;
     }
 };
