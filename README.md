@@ -43,4 +43,4 @@ See `CrossingDetector/CMAKE_README.txt` and/or the wiki page [here](https://open
 
 \* If you have the GUI built somewhere else, you can specify its location by setting the environment variable `GUI_BASE_DIR` or defining it when calling cmake with the option `-DGUI_BASE_DIR=<location>`.
 
-Currently maintained by Mark Schatza (markschatza@gmail.com)
+Currently maintained by Sumedh Sopan Nagrale (sumedh7.nagrale@gmail.com)
