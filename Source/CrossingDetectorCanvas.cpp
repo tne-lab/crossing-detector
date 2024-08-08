@@ -633,6 +633,22 @@ void CrossingDetectorCanvas::initializeOptionsPanel()
 
     outputGroupSet->addGroup({ durationLabel, durationEditable, durationUnit });
 
+    /* ------------------ Threshold toggle --------------- */
+
+    xPos = TAB_WIDTH;
+    yPos += 45;
+
+    tattleThreshButton = new ToggleButton("Output threshold value (replacing input).");
+    tattleThreshButton->setBounds(bounds = { xPos, yPos, 270, C_TEXT_HT });
+    tattleThreshButton->setToggleState(processor->wantTattleThreshold, dontSendNotification);
+    tattleThreshButton->addListener(this);
+
+    tattleThreshButton->setTooltip("Subtracts the threshold from the output so that it is centered on the middle range line");
+    optionsPanel->addAndMakeVisible(tattleThreshButton);
+    opBounds = opBounds.getUnion(bounds);
+
+    outputGroupSet->addGroup({ tattleThreshButton });
+    
     // some extra padding
     opBounds.setBottom(opBounds.getBottom() + 10);
     opBounds.setRight(opBounds.getRight() + 10);
