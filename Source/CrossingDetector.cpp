@@ -219,6 +219,10 @@ CrossingDetector::CrossingDetector()
                         "Enable/disable buffer end sample voting",
                         negOn);
 
+    addBooleanParameter(Parameter::GLOBAL_SCOPE, "toggle_threshold", 
+                        "Enable/disable threshold",
+                        toggleThreshold);
+
     addIntParameter(Parameter::GLOBAL_SCOPE, "buffer_end_mask", "Ignore crossings ocurring specified ms before the end of a buffer",
                     bufferEndMaskMs, 0, INT_MAX);
 
@@ -515,6 +519,23 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
 
             // shift sampToReenable so it is relative to the next buffer
             sampToReenable = jmax(0, sampToReenable - nSamples);
+
+            // threshold toggle
+
+            int toggleChannelNum  = -1;
+            if (toggleThreshold) 
+            {
+                toggleChannelNum = settingsModule->inputChannel;
+            }
+            if (toggleChannelNum >= 0)
+            {
+                float *wpThresh = continuousBuffer.getWritePointer(toggleChannelNum);
+                if (wpThresh != nullptr)
+                {
+                    for (int i = 0; i < nSamples; ++i)
+                        wpThresh[i] -= pThresh[i];
+                } 
+            }
         }
     }
 }
@@ -722,6 +743,10 @@ void CrossingDetector::parameterValueChanged(Parameter* param)
     else if (param->getName().equalsIgnoreCase("use_buffer_end_mask"))
     {
         useBufferEndMask = (bool)param->getValue();
+    }
+    else if (param->getName().equalsIgnoreCase("toggle_threshold"))
+    {
+        toggleThreshold = (bool)param->getValue();
     }
     else if (param->getName().equalsIgnoreCase("buffer_end_mask"))
     {

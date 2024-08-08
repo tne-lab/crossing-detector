@@ -173,6 +173,9 @@ private:
     StreamSettings<CrossingDetectorSettings> settings;
     ThresholdType thresholdType;
 
+    // used for the threshold toggle 
+    bool toggleThreshold;
+
     // if using constant threshold:
     float constantThresh;
 

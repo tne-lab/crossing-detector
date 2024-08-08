@@ -259,6 +259,9 @@ private:
     ScopedPointer<Label> durationEditable;
     ScopedPointer<Label> durationUnit;
 
+    // threshold toggle
+    ScopedPointer<ToggleButton> tattleThreshButton;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetectorCanvas);
 };
 

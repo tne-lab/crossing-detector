@@ -640,7 +640,7 @@ void CrossingDetectorCanvas::initializeOptionsPanel()
 
     tattleThreshButton = new ToggleButton("Output threshold value (replacing input).");
     tattleThreshButton->setBounds(bounds = { xPos, yPos, 270, C_TEXT_HT });
-    tattleThreshButton->setToggleState(processor->wantTattleThreshold, dontSendNotification);
+    tattleThreshButton->setToggleState((bool)processor->getParameter("toggle_threshold")->getValue(), dontSendNotification);
     tattleThreshButton->addListener(this);
 
     tattleThreshButton->setTooltip("Subtracts the threshold from the output so that it is centered on the middle range line");
