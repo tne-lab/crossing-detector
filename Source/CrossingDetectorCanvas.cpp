@@ -638,16 +638,16 @@ void CrossingDetectorCanvas::initializeOptionsPanel()
     xPos = TAB_WIDTH;
     yPos += 45;
 
-    tattleThreshButton = new ToggleButton("Output threshold value (replacing input).");
-    tattleThreshButton->setBounds(bounds = { xPos, yPos, 270, C_TEXT_HT });
-    tattleThreshButton->setToggleState((bool)processor->getParameter("toggle_threshold")->getValue(), dontSendNotification);
-    tattleThreshButton->addListener(this);
+    toggleThreshButton = new ToggleButton("Output threshold value (replacing input).");
+    toggleThreshButton->setBounds(bounds = { xPos, yPos, 270, C_TEXT_HT });
+    toggleThreshButton->setToggleState((bool)processor->getParameter("toggle_threshold")->getValue(), dontSendNotification);
+    toggleThreshButton->addListener(this);
 
-    tattleThreshButton->setTooltip("Subtracts the threshold from the output so that it is centered on the middle range line");
-    optionsPanel->addAndMakeVisible(tattleThreshButton);
+    toggleThreshButton->setTooltip("Subtracts the threshold from the output so that it is centered on the middle range line");
+    optionsPanel->addAndMakeVisible(toggleThreshButton);
     opBounds = opBounds.getUnion(bounds);
 
-    outputGroupSet->addGroup({ tattleThreshButton });
+    outputGroupSet->addGroup({ toggleThreshButton });
     
     // some extra padding
     opBounds.setBottom(opBounds.getBottom() + 10);
@@ -917,6 +917,13 @@ void CrossingDetectorCanvas::buttonClicked(Button* button)
         limitEditable->setEnabled(limitOn);
         limitSleepEditable->setEnabled(limitOn);
         processor->getParameter("use_jump_limit")->setNextValue(limitOn);
+    }
+    if (button == toggleThreshButton) // Maybe follow the example for the radio buttons as functionally that is what is wanted
+    {
+        bool threshButton = button->getToggleState();
+        // limitEditable->setEnabled(limitOn); // Change this line         // Seems like you need an editable in addition to your button
+        // limitSleepEditable->setEnabled(limitOn); // Change this line
+        processor->getParameter("toggle_threshold")->setNextValue(threshButton); 
     }
     else if (button == bufferMaskButton)
     {

@@ -119,6 +119,7 @@ TTLEventPtr CrossingDetectorSettings::createEvent(juce::int64 bufferTs, int cros
 CrossingDetector::CrossingDetector()
     : GenericProcessor      ("Crossing Detector")
     , thresholdType         (CONSTANT)
+    , toggleThreshold       (false)
     , constantThresh        (0.0f)
     , averageDecaySeconds   (5.0f)
     , averageNeedsInit      (true)
