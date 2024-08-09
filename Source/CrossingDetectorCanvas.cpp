@@ -918,11 +918,9 @@ void CrossingDetectorCanvas::buttonClicked(Button* button)
         limitSleepEditable->setEnabled(limitOn);
         processor->getParameter("use_jump_limit")->setNextValue(limitOn);
     }
-    if (button == toggleThreshButton) // Maybe follow the example for the radio buttons as functionally that is what is wanted
+    if (button == toggleThreshButton)
     {
         bool threshButton = button->getToggleState();
-        // limitEditable->setEnabled(limitOn); // Change this line         // Seems like you need an editable in addition to your button
-        // limitSleepEditable->setEnabled(limitOn); // Change this line
         processor->getParameter("toggle_threshold")->setNextValue(threshButton); 
     }
     else if (button == bufferMaskButton)
