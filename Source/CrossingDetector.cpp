@@ -120,6 +120,7 @@ CrossingDetector::CrossingDetector()
     : GenericProcessor      ("Crossing Detector")
     , thresholdType         (CONSTANT)
     , toggleThreshold       (false)
+    , coverage              (false)
     , constantThresh        (0.0f)
     , averageDecaySeconds   (5.0f)
     , averageNeedsInit      (true)
@@ -223,6 +224,10 @@ CrossingDetector::CrossingDetector()
     addBooleanParameter(Parameter::GLOBAL_SCOPE, "toggle_threshold", 
                         "Enable/disable threshold",
                         toggleThreshold);
+
+    addBooleanParameter(Parameter::GLOBAL_SCOPE, "coverage", 
+                        "Enable/disable event coving the entire burst above threshold",
+                        coverage);
 
     addIntParameter(Parameter::GLOBAL_SCOPE, "buffer_end_mask", "Ignore crossings ocurring specified ms before the end of a buffer",
                     bufferEndMaskMs, 0, INT_MAX);
@@ -470,8 +475,10 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
 
 
                 // check whether to trigger an event
-                if (currPosOn && shouldTrigger(true, preVal, postVal, preThresh, postThresh) ||
-                    currNegOn && shouldTrigger(false, preVal, postVal, preThresh, postThresh))
+                bool riseE = (currPosOn && shouldTrigger(true, preVal, postVal, preThresh, postThresh)); 
+                bool fallE = (currNegOn && shouldTrigger(false, preVal, postVal, preThresh, postThresh));
+
+                if ( riseE || fallE )
                 {
 
                     double eventLearningRate = thresholdType == ADAPTIVE ? currLearningRate : 0;
@@ -491,7 +498,14 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
                     // events to be longer than the timeout period create a lot of possibilities and edge cases,
                     // but overwriting turnoffEvent unconditionally guarantees that this and all previously
                     // turned-on events will be turned off by this "turning-off" if they're not already off.
-                    if (sampleNumOff <= nSamples)
+
+                    if (coverage) {
+                        if (fallE) 
+                        {
+                            addEvent(offEvent, sampleNumOff);
+                        }
+                    }
+                    else if (sampleNumOff <= nSamples)
                     {
                         // add off event now
                         addEvent(offEvent, sampleNumOff);
@@ -748,6 +762,10 @@ void CrossingDetector::parameterValueChanged(Parameter* param)
     else if (param->getName().equalsIgnoreCase("toggle_threshold"))
     {
         toggleThreshold = (bool)param->getValue();
+    }
+    else if (param->getName().equalsIgnoreCase("coverage"))
+    {
+        coverage = (bool)param->getValue();
     }
     else if (param->getName().equalsIgnoreCase("buffer_end_mask"))
     {

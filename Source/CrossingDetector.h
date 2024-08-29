@@ -176,6 +176,9 @@ private:
     // used for the threshold toggle 
     bool toggleThreshold;
 
+    // used for covering the whole event 
+    bool coverage;
+
     // if using constant threshold:
     float constantThresh;
 

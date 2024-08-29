@@ -262,6 +262,9 @@ private:
     // threshold toggle
     ScopedPointer<ToggleButton> toggleThreshButton;
 
+    // full coverage of active high or low relative to the threshold 
+    ScopedPointer<ToggleButton> coverageButton;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CrossingDetectorCanvas);
 };
 

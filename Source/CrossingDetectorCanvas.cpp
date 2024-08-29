@@ -613,7 +613,7 @@ void CrossingDetectorCanvas::initializeOptionsPanel()
 
     /* ------------------ Event duration --------------- */
 
-    xPos += TAB_WIDTH;
+    xPos += LEFT_EDGE + TAB_WIDTH;
     yPos += 45;
 
     durationLabel = new Label("DurL", "Event duration:");
@@ -633,12 +633,32 @@ void CrossingDetectorCanvas::initializeOptionsPanel()
 
     outputGroupSet->addGroup({ durationLabel, durationEditable, durationUnit });
 
-    /* ------------------ Threshold toggle --------------- */
+    /* ------------------ Coverage toggle --------------- */
 
-    xPos = TAB_WIDTH;
+    xPos = LEFT_EDGE + TAB_WIDTH;
     yPos += 45;
 
-    toggleThreshButton = new ToggleButton("Output threshold value (replacing input).");
+    static const String coverageTT = 
+        "Envelope the whole event from edge to edge. "
+        "Functions be sending a TTL onEvent on the rising edge of the crossing and a TTL offEvent on the falling edge of the crossing.";
+
+    coverageButton = new ToggleButton("Envelope the whole event from edge to edge.");
+    coverageButton->setBounds(bounds = { xPos, yPos, 225, C_TEXT_HT });
+    coverageButton->setToggleState((bool)processor->getParameter("coverage")->getValue(), dontSendNotification);
+    coverageButton->addListener(this);
+
+    coverageButton->setTooltip(coverageTT);
+    optionsPanel->addAndMakeVisible(coverageButton);
+    opBounds = opBounds.getUnion(bounds);
+
+    outputGroupSet->addGroup({ coverageButton });
+
+    /* ------------------ Threshold toggle --------------- */
+
+    xPos = LEFT_EDGE + TAB_WIDTH;
+    yPos += 45;
+
+    toggleThreshButton = new ToggleButton("Output threshold value (replacing output).");
     toggleThreshButton->setBounds(bounds = { xPos, yPos, 270, C_TEXT_HT });
     toggleThreshButton->setToggleState((bool)processor->getParameter("toggle_threshold")->getValue(), dontSendNotification);
     toggleThreshButton->addListener(this);
@@ -769,7 +789,7 @@ void CrossingDetectorCanvas::labelTextChanged(Label* labelThatHasChanged)
         int prevVal = (int)processor->getParameter("past_span")->getValue();
         if (updateIntLabel(labelThatHasChanged, 0, INT_MAX, prevVal, &newVal))
         {
-            processor->getParameter("past_strict")->setNextValue(newVal);
+            processor->getParameter("past_span")->setNextValue(newVal);
         }
     }
     else if (labelThatHasChanged == futurePctEditable)
@@ -918,7 +938,7 @@ void CrossingDetectorCanvas::buttonClicked(Button* button)
         limitSleepEditable->setEnabled(limitOn);
         processor->getParameter("use_jump_limit")->setNextValue(limitOn);
     }
-    if (button == toggleThreshButton)
+    else if (button == toggleThreshButton)
     {
         bool threshButton = button->getToggleState();
         processor->getParameter("toggle_threshold")->setNextValue(threshButton); 
@@ -929,7 +949,11 @@ void CrossingDetectorCanvas::buttonClicked(Button* button)
         bufferMaskEditable->setEnabled(bufMaskOn);
         processor->getParameter("use_buffer_end_mask")->setNextValue(bufMaskOn);
     }
-
+    else if (button == coverageButton)
+    {
+        bool coverButton = button->getToggleState();
+        processor->getParameter("coverage")->setNextValue(coverButton);
+    }
     // Threshold radio buttons
     else if (button == constantThreshButton)
     {
