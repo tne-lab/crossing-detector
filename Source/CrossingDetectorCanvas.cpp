@@ -631,7 +631,7 @@ void CrossingDetectorCanvas::initializeOptionsPanel()
     optionsPanel->addAndMakeVisible(durationUnit);
     opBounds = opBounds.getUnion(bounds);
 
-    outputGroupSet->addGroup({ durationLabel, durationEditable, durationUnit });
+    // outputGroupSet->addGroup({ durationLabel, durationEditable, durationUnit });
 
     /* ------------------ Coverage toggle --------------- */
 
