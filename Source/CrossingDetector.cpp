@@ -473,6 +473,10 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
                 float postVal = inputAt(indCross);
                 float postThresh = thresholdAt(indCross);
 
+                // TODO:
+                // Look into adding some logic that stops more events from being added until an offEvent is added.
+                // Needing to have both rising and falling selected is obtuse.
+                // Add a check if the voltage is under the threshold to immediately send an off event 
 
                 // check whether to trigger an event
                 bool riseE = (currPosOn && shouldTrigger(true, preVal, postVal, preThresh, postThresh)); 
@@ -500,7 +504,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
                     // turned-on events will be turned off by this "turning-off" if they're not already off.
 
                     if (coverage) {
-                        if (fallE) 
+                        if (shouldTrigger(false, preVal, postVal, preThresh, postThresh)) 
                         {
                             addEvent(offEvent, sampleNumOff);
                         }
@@ -842,6 +846,29 @@ void CrossingDetector::parameterValueChanged(Parameter* param)
     }
 }
 
+void CrossingDetector::handleBroadcastMessage(juce::String msg)
+{
+    LOGC("crossing_detector received message: ", msg);
+
+    // plugin_name variable_name new_value
+    StringArray parts = StringArray::fromTokens(msg, " ", "");
+
+    if (parts[0].equalsIgnoreCase("crossing_detector")) 
+    {
+        Parameter* var_name = getParameter(parts[1]);
+
+        if (var_name != nullptr)
+        {
+            var_name->setNextValue(parts[2]);
+            parameterValueChanged(var_name);
+        } 
+        else
+        {
+            LOGC("[Crossing Detector] invalid command");
+        } 
+    }
+
+}
 
 bool CrossingDetector::startAcquisition()
 {

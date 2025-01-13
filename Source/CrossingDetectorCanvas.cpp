@@ -651,7 +651,7 @@ void CrossingDetectorCanvas::initializeOptionsPanel()
     optionsPanel->addAndMakeVisible(coverageButton);
     opBounds = opBounds.getUnion(bounds);
 
-    outputGroupSet->addGroup({ coverageButton });
+    // outputGroupSet->addGroup({ coverageButton });
 
     /* ------------------ Threshold toggle --------------- */
 
@@ -667,7 +667,7 @@ void CrossingDetectorCanvas::initializeOptionsPanel()
     optionsPanel->addAndMakeVisible(toggleThreshButton);
     opBounds = opBounds.getUnion(bounds);
 
-    outputGroupSet->addGroup({ toggleThreshButton });
+    outputGroupSet->addGroup({ durationLabel, durationEditable, durationUnit, coverageButton, toggleThreshButton });
     
     // some extra padding
     opBounds.setBottom(opBounds.getBottom() + 10);

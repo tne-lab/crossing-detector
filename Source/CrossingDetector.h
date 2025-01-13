@@ -107,6 +107,9 @@ public:
 
     void process(AudioSampleBuffer& continuousBuffer) override;
 
+    /** Allows other processors to configure the Crossing Detector during acquisition*/
+    void handleBroadcastMessage(String message) override;
+
     /** Called when a parameter is updated*/
     void parameterValueChanged(Parameter* param) override;
 
