@@ -613,7 +613,7 @@ void CrossingDetectorCanvas::initializeOptionsPanel()
 
     /* ------------------ Event duration --------------- */
 
-    xPos += LEFT_EDGE + TAB_WIDTH;
+    xPos = LEFT_EDGE + TAB_WIDTH;
     yPos += 45;
 
     durationLabel = new Label("DurL", "Event duration:");
@@ -631,7 +631,25 @@ void CrossingDetectorCanvas::initializeOptionsPanel()
     optionsPanel->addAndMakeVisible(durationUnit);
     opBounds = opBounds.getUnion(bounds);
 
-    // outputGroupSet->addGroup({ durationLabel, durationEditable, durationUnit });
+
+    /* ------------------ Detector Name --------------- */
+
+    xPos = LEFT_EDGE + TAB_WIDTH;
+    yPos += 45;
+
+    static const String nameTT = 
+        "Unique name given to the crossing detector to be used with pybehave";
+
+    detectorNameLabel = new Label("NameL", "Unique name:");
+    detectorNameLabel->setBounds(bounds = { xPos, yPos, 115, C_TEXT_HT });
+    detectorNameLabel->setTooltip(nameTT);
+    optionsPanel->addAndMakeVisible(detectorNameLabel);
+    opBounds = opBounds.getUnion(bounds);
+
+    detectorNameEditable = createEditable("NameE", String((String)(processor->getParameter("plugin_name")->getValue()).toString()), "",
+        bounds = { xPos += 100, yPos, 100, C_TEXT_HT });
+    optionsPanel->addAndMakeVisible(detectorNameEditable);
+    opBounds = opBounds.getUnion(bounds);
 
     /* ------------------ Coverage toggle --------------- */
 
@@ -640,7 +658,7 @@ void CrossingDetectorCanvas::initializeOptionsPanel()
 
     static const String coverageTT = 
         "Envelope the whole event from edge to edge. "
-        "Functions be sending a TTL onEvent on the rising edge of the crossing and a TTL offEvent on the falling edge of the crossing.";
+        "Functions will be sending a TTL onEvent on the rising edge of the crossing and a TTL offEvent on the falling edge of the crossing.";
 
     coverageButton = new ToggleButton("Envelope the whole event from edge to edge.");
     coverageButton->setBounds(bounds = { xPos, yPos, 225, C_TEXT_HT });
@@ -667,7 +685,7 @@ void CrossingDetectorCanvas::initializeOptionsPanel()
     optionsPanel->addAndMakeVisible(toggleThreshButton);
     opBounds = opBounds.getUnion(bounds);
 
-    outputGroupSet->addGroup({ durationLabel, durationEditable, durationUnit, coverageButton, toggleThreshButton });
+    outputGroupSet->addGroup({ durationLabel, durationEditable, durationUnit, detectorNameLabel, detectorNameEditable, coverageButton, toggleThreshButton });
     
     // some extra padding
     opBounds.setBottom(opBounds.getBottom() + 10);
@@ -882,6 +900,17 @@ void CrossingDetectorCanvas::labelTextChanged(Label* labelThatHasChanged)
             processor->getParameter("event_duration")->setNextValue(newVal);
         }
     }
+
+    else if (labelThatHasChanged == detectorNameEditable) 
+    {
+        String newVal; 
+        String prevVal = (String)(processor->getParameter("plugin_name")->getValue()).toString();
+        if (updateStringLabel(labelThatHasChanged, prevVal, &newVal)) 
+        {
+            processor->getParameter("plugin_name")->setNextValue(newVal);
+        }
+    }
+
     // Adaptive threshold editable labels
     else if (labelThatHasChanged == targetEditable)
     {
@@ -1302,6 +1331,17 @@ bool CrossingDetectorCanvas::updateFloatLabel(Label* label, float min, float max
     }
 
     *out = jmax(min, jmin(max, parsedFloat));
+
+    label->setText(String(*out), dontSendNotification);
+    return true;
+}
+
+// Like the other two update labels but always returns true [will change to add a condition when the string shouldn't be updated if something arises]
+bool CrossingDetectorCanvas::updateStringLabel(Label* label, String defaultValue, String* out)
+{
+    const String& in = label->getText();
+
+    *out = in;
 
     label->setText(String(*out), dontSendNotification);
     return true;

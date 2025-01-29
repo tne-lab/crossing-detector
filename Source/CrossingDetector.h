@@ -206,6 +206,8 @@ private:
     bool posOn;
     bool negOn;
 
+    String pluginName;
+
     int eventDuration; // in milliseconds
     int timeout; // milliseconds after an event onset when no more events are allowed.
 

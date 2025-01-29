@@ -141,7 +141,8 @@ private:
     *  and the label is updated with the parsed input. Otherwise, the label is reset
     *  to defaultValue.
     */
-    
+
+    static bool updateStringLabel(Label* label, String defaultValue, String* out);
     static bool updateIntLabel(Label* label, int min, int max,
         int defaultValue, int* out);
     static bool updateFloatLabel(Label* label, float min, float max,
@@ -258,6 +259,10 @@ private:
     ScopedPointer<Label> durationLabel;
     ScopedPointer<Label> durationEditable;
     ScopedPointer<Label> durationUnit;
+
+    // detector name 
+    ScopedPointer<Label> detectorNameLabel;
+    ScopedPointer<Label> detectorNameEditable;
 
     // threshold toggle
     ScopedPointer<ToggleButton> toggleThreshButton;

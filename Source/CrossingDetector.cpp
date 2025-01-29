@@ -27,6 +27,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cmath> // for ceil, floor
 #include <climits>
 
+#include <regex> // used for handleBroadcastMessage 
+#include <string> // included for same reason
+
 /** ------------- Crossing Detector Stream Settings --------------- */
 
 CrossingDetectorSettings::CrossingDetectorSettings() :
@@ -137,6 +140,7 @@ CrossingDetector::CrossingDetector()
     , currLearningRate(startLearningRate)
     , posOn                 (true)
     , negOn                 (false)
+    , pluginName            ("UNNAMED")
     , eventDuration         (5)
     , timeout               (1000)
     , useBufferEndMask      (false)
@@ -233,6 +237,8 @@ CrossingDetector::CrossingDetector()
                     bufferEndMaskMs, 0, INT_MAX);
 
     addIntParameter(Parameter::GLOBAL_SCOPE, "event_duration", "Event Duration", eventDuration, 0, INT_MAX);
+
+    addStringParameter(Parameter::GLOBAL_SCOPE, "plugin_name", "Editable to give a unique name to the plugin", pluginName);
     
     // Adaptive threshold
     addIntParameter(Parameter::STREAM_SCOPE, "indicator_channel", "Index of monitored event channel", -1, -1, INT_MAX);
@@ -477,6 +483,7 @@ void CrossingDetector::process(AudioSampleBuffer& continuousBuffer)
                 // Look into adding some logic that stops more events from being added until an offEvent is added.
                 // Needing to have both rising and falling selected is obtuse.
                 // Add a check if the voltage is under the threshold to immediately send an off event 
+                // See if state machine logic can be implemented (maybe use switch and control var)
 
                 // check whether to trigger an event
                 bool riseE = (currPosOn && shouldTrigger(true, preVal, postVal, preThresh, postThresh)); 
@@ -695,6 +702,10 @@ void CrossingDetector::parameterValueChanged(Parameter* param)
     {
         negOn = (bool)param->getValue();
     }
+    else if (param->getName().equalsIgnoreCase("plugin_name"))
+    {
+        pluginName = (String)(param->getValue()).toString();
+    }
     else if (param->getName().equalsIgnoreCase("event_duration"))
     {
         eventDuration = (int)param->getValue();
@@ -848,18 +859,40 @@ void CrossingDetector::parameterValueChanged(Parameter* param)
 
 void CrossingDetector::handleBroadcastMessage(juce::String msg)
 {
-    LOGC("crossing_detector received message: ", msg);
 
-    // plugin_name variable_name new_value
-    StringArray parts = StringArray::fromTokens(msg, " ", "");
+    // Parse the string from pybehave
+    std::string str = msg.toStdString();
 
-    if (parts[0].equalsIgnoreCase("crossing_detector")) 
+    std::regex reg("'(.*?)'");
+
+    std::smatch matches;
+    
+    std::vector < std::string > arr;
+
+    while(std::regex_search(str, matches, reg)){
+
+        arr.push_back(matches.str(1));
+
+        str = matches.suffix().str();
+
+    }
+
+    String messgae = arr.back();
+    
+
+    // This same process can be extrapolated to other plugins
+    LOGC("crossing_detector received message: ", messgae);
+
+    // plugin_name id_number variable_name new_value
+    StringArray parts = StringArray::fromTokens(messgae, " ", "");
+
+    if (parts[0].equalsIgnoreCase("crossing_detector") && (parts[1].equalsIgnoreCase(pluginName))) 
     {
-        Parameter* var_name = getParameter(parts[1]);
+        Parameter* var_name = getParameter(parts[2]);
 
         if (var_name != nullptr)
         {
-            var_name->setNextValue(parts[2]);
+            var_name->setNextValue(parts[3]);
             parameterValueChanged(var_name);
         } 
         else

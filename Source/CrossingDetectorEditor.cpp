@@ -100,6 +100,8 @@ CrossingDetectorEditor::CrossingDetectorEditor(GenericProcessor* parentNode)
     addAndMakeVisible(timeoutUnitLabel);
 
 
+    //addTextBoxParameterEditor
+
 }
 
 CrossingDetectorEditor::~CrossingDetectorEditor() {}
