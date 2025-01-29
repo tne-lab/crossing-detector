@@ -29,6 +29,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <regex> // used for handleBroadcastMessage 
 #include <string> // included for same reason
+#include <sstream>
 
 /** ------------- Crossing Detector Stream Settings --------------- */
 
@@ -869,36 +870,42 @@ void CrossingDetector::handleBroadcastMessage(juce::String msg)
     
     std::vector < std::string > arr;
 
-    while(std::regex_search(str, matches, reg)){
+    while(std::regex_search(str, matches, reg))
+    {
 
         arr.push_back(matches.str(1));
 
         str = matches.suffix().str();
 
     }
-
-    String messgae = arr.back();
     
-
-    // This same process can be extrapolated to other plugins
-    LOGC("crossing_detector received message: ", messgae);
-
-    // plugin_name id_number variable_name new_value
-    StringArray parts = StringArray::fromTokens(messgae, " ", "");
-
-    if (parts[0].equalsIgnoreCase("crossing_detector") && (parts[1].equalsIgnoreCase(pluginName))) 
+    if (!arr.empty()) 
     {
-        Parameter* var_name = getParameter(parts[2]);
+        std::string temp = arr.back(); // The last string should be the command that we want
+        
+        String message(temp);
 
-        if (var_name != nullptr)
+        // This same process can be extrapolated to other plugins
+
+        // plugin_name id_number variable_name new_value
+        StringArray parts = StringArray::fromTokens(message, " ", "");
+
+        if (parts[0].equalsIgnoreCase("crossing_detector") && (parts[1].equalsIgnoreCase(pluginName))) 
         {
-            var_name->setNextValue(parts[3]);
-            parameterValueChanged(var_name);
-        } 
-        else
-        {
-            LOGC("[Crossing Detector] invalid command");
-        } 
+            LOGC("crossing_detector received message: ", message);
+
+            Parameter* var_name = getParameter(parts[2]);
+
+            if (var_name != nullptr)
+            {
+                var_name->setNextValue(parts[3]);
+                parameterValueChanged(var_name);
+            } 
+            else
+            {
+                LOGC("[Crossing Detector] invalid command");
+            } 
+        }
     }
 
 }
