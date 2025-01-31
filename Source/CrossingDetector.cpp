@@ -892,7 +892,7 @@ void CrossingDetector::handleBroadcastMessage(juce::String msg)
 
         // This same process can be extrapolated to other plugins
 
-        // plugin_name id_number variable_name new_value
+        // plugin_name id_name variable_name new_value
         StringArray parts = StringArray::fromTokens(message, " ", "");
 
         if (parts[0].equalsIgnoreCase("crossing_detector") && (parts[1].equalsIgnoreCase(pluginName))) 
@@ -903,8 +903,13 @@ void CrossingDetector::handleBroadcastMessage(juce::String msg)
 
             if (var_name != nullptr)
             {
-                var_name->setNextValue(parts[3]);
-                parameterValueChanged(var_name);
+
+                int index = 0; // needs to be based off of var_name
+
+                std::string new_value_string = (parts[3]).toStdString();
+                float new_value = atof(new_value_string.c_str());
+
+                setParameter(index, new_value);
             } 
             else
             {
