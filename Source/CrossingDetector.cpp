@@ -861,6 +861,11 @@ void CrossingDetector::parameterValueChanged(Parameter* param)
 void CrossingDetector::handleBroadcastMessage(juce::String msg)
 {
 
+    if (pluginName.equalsIgnoreCase("UNNAMED")) 
+    {
+        return; //break if the plugin isn't named
+    }
+
     // Parse the string from pybehave
     std::string str = msg.toStdString();
 
@@ -870,7 +875,7 @@ void CrossingDetector::handleBroadcastMessage(juce::String msg)
     
     std::vector < std::string > arr;
 
-    while(std::regex_search(str, matches, reg))
+    while (std::regex_search(str, matches, reg))
     {
 
         arr.push_back(matches.str(1));
