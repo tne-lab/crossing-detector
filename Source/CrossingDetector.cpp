@@ -904,12 +904,11 @@ void CrossingDetector::handleBroadcastMessage(juce::String msg)
             if (var_name != nullptr)
             {
 
-                int index = 0; // needs to be based off of var_name
-
                 std::string new_value_string = (parts[3]).toStdString();
                 float new_value = atof(new_value_string.c_str());
 
-                setParameter(index, new_value);
+                var_name->setNextValue(new_value);
+                
             } 
             else
             {
