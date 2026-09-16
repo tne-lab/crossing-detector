@@ -24,6 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "CrossingDetector.h"
 #include "CrossingDetectorEditor.h"
 
+#include <fstream>
 #include <cmath> // for ceil, floor
 
 CrossingDetector::CrossingDetector()
@@ -810,14 +811,33 @@ bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal
     // number of samples required before and after crossing threshold
     int pastSamplesNeeded = pastSpan ? static_cast<int>(ceil(pastSpan * pastStrict)) : 0;
     int futureSamplesNeeded = futureSpan ? static_cast<int>(ceil(futureSpan * futureStrict)) : 0;
+
+    if (thresholdType == ADAPTIVE)
+    {
+        // ** TO - DO **
+        //  check whether linear logic for past & future span needs to be updated!
+        float preDiff = fmod(preVal - preThresh + 540, 360) - 180;
+        float postDiff = fmod(postVal - postThresh + 540, 360) - 180;
+
+        bool preSat = direction ? (preDiff < 0.0f) : (preDiff > 0.0f);
+        bool postSat = direction ? (postDiff >= 0.0f) : (postDiff <= 0.0f);
+        bool pastSat = (direction ? pastSpan - pastSamplesAbove : pastSamplesAbove) >= pastSamplesNeeded;
+        bool futureSat = (direction ? futureSamplesAbove : futureSpan - futureSamplesAbove) >= futureSamplesNeeded;
+        return preSat && postSat && pastSat && futureSat;
+
+    }
+    else
+    {
+        // four conditions for the event
+        bool preSat = direction != (preVal > preThresh);
+        bool postSat = direction == (postVal > postThresh);
+        bool pastSat = (direction ? pastSpan - pastSamplesAbove : pastSamplesAbove) >= pastSamplesNeeded;
+        bool futureSat = (direction ? futureSamplesAbove : futureSpan - futureSamplesAbove) >= futureSamplesNeeded;
+        return preSat && postSat && pastSat && futureSat;
+    }
+  
     
-    // four conditions for the event
-    bool preSat = direction != (preVal > preThresh);
-    bool postSat = direction == (postVal > postThresh);
-    bool pastSat = (direction ? pastSpan - pastSamplesAbove : pastSamplesAbove) >= pastSamplesNeeded;
-    bool futureSat = (direction ? futureSamplesAbove : futureSpan - futureSamplesAbove) >= futureSamplesNeeded;
-    
-    return preSat && postSat && pastSat && futureSat;
+    // return preSat && postSat && pastSat && futureSat;
 }
 
 void CrossingDetector::triggerEvent(juce::int64 bufferTs, int crossingOffset,
