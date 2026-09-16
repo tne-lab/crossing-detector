@@ -814,8 +814,7 @@ bool CrossingDetector::shouldTrigger(bool direction, float preVal, float postVal
 
     if (thresholdType == ADAPTIVE)
     {
-        // ** TO - DO **
-        //  check whether linear logic for past & future span needs to be updated!
+       
         float preDiff = fmod(preVal - preThresh + 540, 360) - 180;
         float postDiff = fmod(postVal - postThresh + 540, 360) - 180;
 
